@@ -1,4 +1,10 @@
 {- EXCEPTIONS -}
 
-const int exec::invalid_proof = 12; ;;ZKP verification failed
+const int exec::invalid_proof = 23; ;;ZKP verification failed
 const int exec::deposit_not_found = 13; ;;The Deposit was not found in the dict
+
+{- OP-CODES-}
+const op::deposit = 0x3b3ca17; ;;The opcode to deposit jettons
+
+const op::withdraw = 0x4b4ccb18; ;;The opcode to withdraw jettons
+
