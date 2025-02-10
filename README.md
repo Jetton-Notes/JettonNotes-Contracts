@@ -9,7 +9,7 @@ NOTE! THE POWERS OF TAU CEREMONY WAS NOT DECENTRALIZED, WAS DONE JUST LOCALLY
 
 FORKED SNARKJS WITH FUNC SUPPORT MUST BE AVAILABE IN PATH
 
-`node ../../snarkjs/build/cli.cjs zkey export funcverifier withdraw_0000.zkey ../contracts/verifier.fc`
+`node ../../snarkjs/build/cli.cjs zkey export funcverifier circuit_final.zkey ./verifier.fc`
 
 ## Project structure
 
