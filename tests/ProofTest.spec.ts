@@ -1,16 +1,9 @@
 
-import { deposit, generateNoteWithdrawProof, parseNote, verifyThreePublicSignals } from "../lib/notes";
+import { deposit, generateNoteWithdrawProof, hexToBigint, parseNote, SplitAddress, verifyThreePublicSignals } from "../lib/notes";
 import fs from "fs";
 import assert from "assert";
 import { Address } from "@ton/core";
 
-const SplitAddress = (addrString: string) => {
-    return addrString.split(":")[1];
-}
-
-const hexToBigint = (hex: string) => {
-    return BigInt("0x" + hex);
-}
 
 describe("Proof test", () => {
 
