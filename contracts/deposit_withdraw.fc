@@ -3,9 +3,9 @@
 
 #include "storage.fc";
 #include "verifier.fc";
-const op::deposit = "op::deposit"c; ;;The opcode to deposit jettons
 
-const op::withdraw = "op::withdraw"c; ;;The opcode to withdraw jettons
+;; global int ctx_res;
+
 
 
 ;; recv_internal is the main function of the contract and is called when it receives a message from other contracts
@@ -20,8 +20,9 @@ const op::withdraw = "op::withdraw"c; ;;The opcode to withdraw jettons
         return ();
     }
 
-    cell dict = storage::load_data(); ;; here we get the dict from storage
-    
+    ;; cell dict = storage::load_data(); ;; here we get the dict from storage
+ 
+
     int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
     int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
 
@@ -37,6 +38,7 @@ const op::withdraw = "op::withdraw"c; ;;The opcode to withdraw jettons
         ;; Update the dict
 
         ;;Check to make sure the commitment doesn't exist  yet
+        return ();
     }
 
     if(op == op::withdraw){
@@ -52,12 +54,17 @@ const op::withdraw = "op::withdraw"c; ;;The opcode to withdraw jettons
         int pubInput2 = in_msg_body~verifier::load_newint(); ;; This should be the address of the recipient
         
         int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,pubInput2);
+        
+         ~dump(verificationResult);
 
-        throw_unless(exec::invalid_proof, verificationResult == 0); ;;If the verification result is not 0, throw error
+         throw_if(exec::invalid_proof, verificationResult == 0);
 
-;;        (slice deposit,int found) = dict.idict_get?(dict,256,pubInput1); ;;Pubinput 1 should be the commitment
+        ;;TODO: learn how throw unless works because it just fails whatever i use it for
+        ;; throw_unless(exec::invalid_proof, verificationResult == ); ;;If the verification result is 0, throw error
 
-;;        throw_unless(exec::deposit_not_found, found == -1); ;; If the Deposit is not found, throw
+        ;; (slice deposit,int found) = dict.idict_get?(dict,256,pubInput1); ;;Pubinput 1 should be the commitment
+
+        ;; throw_unless(exec::deposit_not_found, found == -1); ;; If the Deposit is not found, throw
 
         ;; TODO: Check if the deposit was withdrawn already!
 
@@ -65,9 +72,10 @@ const op::withdraw = "op::withdraw"c; ;;The opcode to withdraw jettons
 
         ;;TODO: Then set it withdrawn using the nullifierHash
         
-       ;;Mutate the dict, then save it back
+        ;;Mutate the dict, then save it back
 
-     ;;   storage::save_data(dict);
+        ;;   storage::save_data(dict);
+        return ();
     };
 
     throw(0xffff); ;; if the message contains an op that is not known to this contract, we throw
@@ -78,9 +86,9 @@ const op::withdraw = "op::withdraw"c; ;;The opcode to withdraw jettons
 (slice) get_deposit(int commitment) method_id {
     cell dict = storage::load_data();
     
-   (slice payload, int success) = dict.idict_get?(256, commitment);
+     (slice payload, int success) = dict.idict_get?(256, commitment);
 
-   throw_unless(exec::deposit_not_found,success);
+    throw_unless(exec::deposit_not_found,success);
 
     return (payload);
 }
