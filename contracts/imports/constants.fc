@@ -1,0 +1,4 @@
+{- EXCEPTIONS -}
+
+const int exec::invalid_proof = 12; ;;ZKP verification failed
+const int exec::deposit_not_found = 13; ;;The Deposit was not found in the dict

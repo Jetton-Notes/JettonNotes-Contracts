@@ -1,0 +1,16 @@
+#include "imports/stdlib.fc";
+
+cell storage::load_data() inline {
+    cell data = get_data();
+    slice ds = data.begin_parse();
+
+    if (ds.slice_bits() == 0){
+        return new_dict();
+    } else {
+        return data;
+    }
+}
+
+() storage::save_data(cell data) impure {
+    set_data(data);
+}

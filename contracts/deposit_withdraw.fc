@@ -1,33 +1,12 @@
 #include "imports/stdlib.fc";
+#include "imports/constants.fc";
 
-const op::increase = "op::increase"c; ;; create an opcode from string using the "c" prefix, this results in 0x7e8764ef opcode in this case
+#include "storage.fc";
+#include "verifier.fc";
+const op::deposit = "op::deposit"c; ;;The opcode to deposit jettons
 
-;; storage variables
+const op::withdraw = "op::withdraw"c; ;;The opcode to withdraw jettons
 
-;; id is required to be able to create different instances of counters
-;; since addresses in TON depend on the initial state of the contract
-global int ctx_id;
-global int ctx_counter;
-
-;; load_data populates storage variables using stored data
-() load_data() impure {
-    var ds = get_data().begin_parse(); ;;start parsing the cell
-
-    ctx_id = ds~load_uint(32);
-    ctx_counter = ds~load_uint(32);
-
-    ds.end_parse();
-}
-
-;; save_data stores storage variables as a cell into persistent storage
-() save_data() impure {
-    set_data(
-        begin_cell()
-            .store_uint(ctx_id, 32)
-            .store_uint(ctx_counter, 32)
-            .end_cell()
-    );
-}
 
 ;; recv_internal is the main function of the contract and is called when it receives a message from other contracts
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -41,31 +20,67 @@ global int ctx_counter;
         return ();
     }
 
-    load_data(); ;; here we populate the storage variables
-
+    cell dict = storage::load_data(); ;; here we get the dict from storage
+    
     int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
     int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
 
-    if (op == op::increase) {
-        int increase_by = in_msg_body~load_uint(32);
-        ctx_counter += increase_by;
-        save_data();
-        return ();
+    if(op == op::deposit){
+        ;;Deposit tBTC jettons with a commitment and save them into a dictionary
+
+        ;;Load the commitment from the body
+
+        ;;Load the deposit amount from the body
+
+        ;; Make sure the jettons a re transferred here
+
+        ;; Update the dict
+
+        ;;Check to make sure the commitment doesn't exist  yet
     }
+
+    if(op == op::withdraw){
+        ;;Call the ZKP verifier here
+        slice pi_a = in_msg_body~verifier::load_p1();
+        slice pi_b = in_msg_body~verifier::load_p2();
+        slice pi_c = in_msg_body~verifier::load_p1();
+
+        int pubInput0 = in_msg_body~verifier::load_newint(); ;; This is the nullifierHash
+        int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
+
+        ;;Replace pubInput2 with the address of the sender
+        int pubInput2 = in_msg_body~verifier::load_newint(); ;; This should be the address of the recipient
+        
+        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,pubInput2);
+
+        throw_unless(exec::invalid_proof, verificationResult == 0); ;;If the verification result is not 0, throw error
+
+;;        (slice deposit,int found) = dict.idict_get?(dict,256,pubInput1); ;;Pubinput 1 should be the commitment
+
+;;        throw_unless(exec::deposit_not_found, found == -1); ;; If the Deposit is not found, throw
+
+        ;; TODO: Check if the deposit was withdrawn already!
+
+        ;;TODO: If not, then withdraw it to the sender's address
+
+        ;;TODO: Then set it withdrawn using the nullifierHash
+        
+       ;;Mutate the dict, then save it back
+
+     ;;   storage::save_data(dict);
+    };
 
     throw(0xffff); ;; if the message contains an op that is not known to this contract, we throw
 }
 
-;; get methods are a means to conveniently read contract data using, for example, HTTP APIs
-;; they are marked with method_id
-;; note that unlike in many other smart contract VMs, get methods cannot be called by other contracts
+;; Checks if there is a deposit at commitment and returns the slice stored at that index in the dict
+;; The slice contains the deposit amount and if it's been nullified or not
+(slice) get_deposit(int commitment) method_id {
+    cell dict = storage::load_data();
+    
+   (slice payload, int success) = dict.idict_get?(256, commitment);
 
-int get_counter() method_id {
-    load_data();
-    return ctx_counter;
-}
+   throw_unless(exec::deposit_not_found,success);
 
-int get_id() method_id {
-    load_data();
-    return ctx_id;
+    return (payload);
 }

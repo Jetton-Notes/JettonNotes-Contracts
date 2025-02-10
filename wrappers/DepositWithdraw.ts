@@ -10,8 +10,8 @@ export function depositWithdrawConfigToCell(config: DepositWithdrawConfig): Cell
 }
 
 export const Opcodes = {
-    verify: 0x3b3cca17,
-    // increase: 0x7e8764ef,
+    deposit: 0x3b3ca17,
+    withdraw: 0x4b4ccb18,
 };
 
 export class DepositWithdraw implements Contract {
@@ -35,7 +35,9 @@ export class DepositWithdraw implements Contract {
         });
     }
 
-    async sendVerify(
+    // async sendDeposit(provider: ContractProvider, via: Sender){}
+
+    async sendWithdraw(
         provider: ContractProvider,
         via: Sender,
         opts: {
@@ -51,7 +53,7 @@ export class DepositWithdraw implements Contract {
             value: opts.value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
             body: beginCell()
-                .storeUint(Opcodes.verify, 32)
+                .storeUint(Opcodes.withdraw, 32)
                 .storeUint(opts.queryID ?? 0, 64)
                 .storeRef(
                     beginCell()
@@ -67,10 +69,47 @@ export class DepositWithdraw implements Contract {
                                         )
                                 )
                         )
-                )
-                .endCell(),
-        });
+                ).endCell()
+        })
+
     }
+
+    // async sendVerify(
+    //     provider: ContractProvider,
+    //     via: Sender,
+    // opts: {
+    //     pi_a: Buffer;
+    //     pi_b: Buffer;
+    //     pi_c: Buffer;
+    //     pubInputs: bigint[];
+    //     value: bigint;
+    //     queryID?: number;
+    // }
+    // ) {
+    //     await provider.internal(via, {
+    //         value: opts.value,
+    //         sendMode: SendMode.PAY_GAS_SEPARATELY,
+    //         body: beginCell()
+    //             .storeUint(Opcodes.verify, 32)
+    //             .storeUint(opts.queryID ?? 0, 64)
+    //             .storeRef(
+    //                 beginCell()
+    //                     .storeBuffer(opts.pi_a)
+    //                     .storeRef(
+    //                         beginCell()
+    //                             .storeBuffer(opts.pi_b)
+    //                             .storeRef(
+    //                                 beginCell()
+    //                                     .storeBuffer(opts.pi_c)
+    //                                     .storeRef(
+    //                                         this.cellFromInputList(opts.pubInputs)
+    //                                     )
+    //                             )
+    //                     )
+    //             )
+    //             .endCell(),
+    //     });
+    // }
 
     cellFromInputList(list: bigint[]): Cell {
         var builder = beginCell();
@@ -112,9 +151,9 @@ export class DepositWithdraw implements Contract {
     //     const result = await provider.get('get_id', []);
     //     return result.stack.readNumber();
     // }
-    
-    async getRes(provider: ContractProvider) {
-        const result = await provider.get('get_res', []);
-        return result.stack.readNumber();
-    }
+
+    // async getRes(provider: ContractProvider) {
+    //     const result = await provider.get('get_res', []);
+    //     return result.stack.readNumber();
+    // }
 }
