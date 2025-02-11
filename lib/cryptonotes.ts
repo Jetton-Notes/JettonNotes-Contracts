@@ -11,8 +11,6 @@ export function rbigint(): bigint { return utils.leBuff2int(crypto.randomBytes(3
 
 // Generates the proofs for verification! 
 export async function generateNoteWithdrawProof({ deposit, recipient, workchain, snarkArtifacts }) {
-    console.log("Generate proof start");
-    console.log(workchain);
     const input = {
         nullifierHash: deposit.nullifierHash,
         commitmentHash: deposit.commitment,
