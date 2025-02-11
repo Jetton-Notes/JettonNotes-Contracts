@@ -54,9 +54,106 @@ describe('DepositWithdraw', () => {
     //     // blockchain and depositWithdraw are ready to use
     // });
 
-    it("should verify", async () => {
+
+
+    it("should call deposit and save the data to storage", async () => {
         const noteString = await deposit({ currency: "tbtc", amount: 1 });
         const parsedNote = await parseNote(noteString);
+
+        const depositor = await blockchain.treasury("depositor");
+
+        let depositResult = await depositWithdraw.sendDeposit(
+            depositor.getSender(), {
+            value: toNano("0.15"),
+            commitment: parsedNote.deposit.commitment,
+            depositAmount: toNano("0.01")
+        })
+
+        expect(depositResult.transactions).toHaveTransaction({
+            from: depositor.address,
+            to: depositWithdraw.address,
+            success: true
+        })
+        const dict = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+
+        expect(dict.commitment).toBe(parsedNote.deposit.commitment);
+
+        expect(dict.nullifier).toBe(0n);
+        expect(dict.depositAmount).toBe(toNano("0.01"))
+
+        //Now I save a new deposit...
+
+        depositResult = await depositWithdraw.sendDeposit(
+            depositor.getSender(),
+            {
+                value: toNano("0.15"),
+                commitment: parsedNote.deposit.commitment,
+                depositAmount: toNano("0.01")
+            }
+        )
+        expect(depositResult.transactions).toHaveTransaction({
+            from: depositor.address,
+            to: depositWithdraw.address,
+            success: false,
+            exitCode: 52
+        })
+
+        const noteString2 = await deposit({ currency: "tbtc", amount: 0.01 });
+        const parsedNote2 = await parseNote(noteString2);
+
+        depositResult = await depositWithdraw.sendDeposit(
+            depositor.getSender(),
+            {
+                value: toNano("0.15"),
+                commitment: parsedNote2.deposit.commitment,
+                depositAmount: toNano("0.01")
+            }
+        )
+
+        expect(depositResult.transactions).toHaveTransaction({
+            from: depositor.address,
+            to: depositWithdraw.address,
+            success: true
+        })
+
+        //Assert that now with new entries, the old one is still there!
+
+        const dict1 = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+
+        expect(dict1.commitment).toBe(parsedNote.deposit.commitment);
+
+        expect(dict1.nullifier).toBe(0n);
+        expect(dict1.depositAmount).toBe(toNano("0.01"))
+
+
+        const dict2 = await depositWithdraw.getDeposit(parsedNote2.deposit.commitment);
+
+        expect(dict2.commitment).toBe(parsedNote2.deposit.commitment);
+
+        expect(dict2.nullifier).toBe(0n);
+        expect(dict2.depositAmount).toBe(toNano("0.01"))
+
+    })
+
+    it("should withdraw", async () => {
+        const noteString = await deposit({ currency: "tbtc", amount: 1 });
+        const parsedNote = await parseNote(noteString);
+        const depositor = await blockchain.treasury("depositor");
+
+        let depositResult = await depositWithdraw.sendDeposit(
+            depositor.getSender(), {
+            value: toNano("0.15"),
+            commitment: parsedNote.deposit.commitment,
+            depositAmount: toNano("0.01")
+        })
+
+        expect(depositResult.transactions).toHaveTransaction({
+            from: depositor.address,
+            to: depositWithdraw.address,
+            success: true
+        })
+
+
         const verifier = await blockchain.treasury("verifier");
         const recipient_address = verifier.address;
         const [workchain, splitRawAddress] = SplitAddress(recipient_address.toRawString());
@@ -80,7 +177,7 @@ describe('DepositWithdraw', () => {
         const pi_c = Buffer.from(pi_cS, "hex");
 
 
-        console.log(publicSignals)
+
         const verifyResult = await depositWithdraw.sendWithdraw(
             verifier.getSender(),
             {
@@ -90,47 +187,21 @@ describe('DepositWithdraw', () => {
                 pubInputs: publicSignals,
                 value: toNano("0.15") //0.15 TON fee
             });
+
         expect(verifyResult.transactions).toHaveTransaction({
             from: verifier.address,
             to: depositWithdraw.address,
             success: true
         })
 
-        //TODO: Can do fetching with public view function to check a result
+        // Can do fetching with public view function to check a result
+
+        const dict1 = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+
+        expect(dict1.commitment).toBe(parsedNote.deposit.commitment);
+
+        expect(dict1.nullifier).toBe(parsedNote.deposit.nullifierHash);
+        expect(dict1.depositAmount).toBe(toNano("0.01"));
 
     })
-
-    // it('should increase counter', async () => {
-    //     const increaseTimes = 3;
-    //     for (let i = 0; i < increaseTimes; i++) {
-    //         console.log(`increase ${i + 1}/${increaseTimes}`);
-
-    //         const increaser = await blockchain.treasury('increaser' + i);
-
-    //         const counterBefore = await depositWithdraw.getCounter();
-
-    //         console.log('counter before increasing', counterBefore);
-
-    //         const increaseBy = Math.floor(Math.random() * 100);
-
-    //         console.log('increasing by', increaseBy);
-
-    //         const increaseResult = await depositWithdraw.sendIncrease(increaser.getSender(), {
-    //             increaseBy,
-    //             value: toNano('0.05'),
-    //         });
-
-    //         expect(increaseResult.transactions).toHaveTransaction({
-    //             from: increaser.address,
-    //             to: depositWithdraw.address,
-    //             success: true,
-    //         });
-
-    //         const counterAfter = await depositWithdraw.getCounter();
-
-    //         console.log('counter after increasing', counterAfter);
-
-    //         expect(counterAfter).toBe(counterBefore + increaseBy);
-    //     }
-    // });
 });
