@@ -3,6 +3,7 @@
 
 #include "storage.fc";
 #include "verifier.fc";
+#include "packing.fc";
 
 ;; recv_internal is the main function of the contract and is called when it receives a message from other contracts
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -22,7 +23,7 @@
    ;;TODO: Get from the Dict and Set to the dict
    ;;Create message encoders and decoders, kind of like a struct but stored in the dict per key
 
-    ;; cell dict = storage::load_data(); ;; here we get the dict from storage
+    cell dict = storage::load_data(); ;; here we get the dict from storage
  
 
     int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
@@ -30,6 +31,24 @@
 
     
     if(op == op::deposit){
+        cell deposit_data = in_msg_body~load_ref();
+        slice s = deposit_data.begin_parse();
+        int commitment = s~load_uint(256);
+        int depositAmount = s~load_coins();
+
+        cell packedDepositData = packing::pack_depositData(
+            commitment,
+            0,
+            depositAmount);
+
+
+         (cell newDict, int success)  =  udict_add?(dict, 256, commitment, packedDepositData.begin_parse());
+
+
+        throw_if(exec::deposit_already_exists, success == 0);
+
+         storage::save_data(newDict);
+
         ;;Deposit tBTC jettons with a commitment and save them into a dictionary
 
         ;;Load the commitment from the body
@@ -52,30 +71,36 @@
 
         int pubInput0 = in_msg_body~verifier::load_newint(); ;; This is the nullifierHash
         int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
-
-;;        int pubInput2 = in_msg_body~verifier::load_newint();
-        
-;;        int pubInput3 = in_msg_body~verifier::load_newint();
+        ;;int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
+        ;;int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender
 
         int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, addr ); ;; addr, workchain); ;;Using the sender's address for the pubInput2
         
-        ;;  ~dump(verificationResult);
+        throw_if(exec::invalid_proof, verificationResult == 0);
 
-         throw_if(exec::invalid_proof, verificationResult == 0);
-
-        ;; (slice deposit,int found) = dict.idict_get?(dict,256,pubInput1); ;;Pubinput 1 should be the commitment
-
-        ;; throw_unless(exec::deposit_not_found, found == -1); ;; If the Deposit is not found, throw
-
-        ;; TODO: Check if the deposit was withdrawn already!
-
-        ;;TODO: If not, then withdraw it to the sender's address
-
-        ;;TODO: Then set it withdrawn using the nullifierHash
+        (slice payload,int found) = dict.udict_get?(256,pubInput1); ;;Get the withraw data by commitment
         
-        ;;Mutate the dict, then save it back
+        throw_unless(exec::deposit_not_found, found); ;; If the Deposit is not found, throw
 
-        ;;   storage::save_data(dict);
+        (int commitment, int nullifierHash, int depositAmount) = packing::unpack_depositData(payload);
+        
+        ;; Check if the deposit was withdrawn already, if the nullifierHash is zero then it was not withrawn
+        throw_if(exec::deposit_nullified, nullifierHash != 0);
+
+        ;;TODO: Withdraw it to the sender's address!
+
+        ;;Nullify the amount
+        cell packedDepositData = packing::pack_depositData(
+            commitment,
+            pubInput0,
+            depositAmount); ;;This deposit amount is nullified now
+
+
+        ;;Upate the dict
+        cell newDict = udict_set(dict,256,commitment,packedDepositData.begin_parse());
+
+        storage::save_data(newDict);
+
         return ();
     };
 
@@ -84,12 +109,12 @@
 
 ;; Checks if there is a deposit at commitment and returns the slice stored at that index in the dict
 ;; The slice contains the deposit amount and if it's been nullified or not
-(slice) get_deposit(int commitment) method_id {
+(int,int,int) get_deposit(int commitment) method_id {
     cell dict = storage::load_data();
     
      (slice payload, int success) = dict.udict_get?(256, commitment);
 
     throw_unless(exec::deposit_not_found,success);
 
-    return (payload);
+    return packing::unpack_depositData(payload);
 }
