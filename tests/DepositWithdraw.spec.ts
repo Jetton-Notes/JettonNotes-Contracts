@@ -3,7 +3,7 @@ import { Address, Cell, toNano } from '@ton/core';
 import { DepositWithdraw } from '../wrappers/DepositWithdraw';
 import '@ton/test-utils';
 import { compile } from '@ton/blueprint';
-import { deposit, g1Compressed, g2Compressed, generateNoteWithdrawProof, hexToBigint, parseNote, SplitAddress } from '../lib/notes';
+import { deposit, g1Compressed, g2Compressed, generateNoteWithdrawProof, hexToBigint, parseNote, SplitAddress } from '../lib/cryptonotes';
 
 
 
@@ -57,10 +57,19 @@ describe('DepositWithdraw', () => {
     it("should verify", async () => {
         const noteString = await deposit({ currency: "tbtc", amount: 1 });
         const parsedNote = await parseNote(noteString);
-        const recipient_address = deployer.address;
-        const splitRaw = SplitAddress(recipient_address.toRawString())
-        const recipient_bigint = hexToBigint(splitRaw);
-        const { proof, publicSignals } = await generateNoteWithdrawProof({ deposit: parsedNote.deposit, recipient: recipient_bigint, snarkArtifacts: undefined })
+        const verifier = await blockchain.treasury("verifier");
+        const recipient_address = verifier.address;
+        const [workchain, splitRawAddress] = SplitAddress(recipient_address.toRawString());
+
+
+        const recipient_bigint = hexToBigint(splitRawAddress);
+        const { proof, publicSignals } = await generateNoteWithdrawProof(
+            {
+                deposit: parsedNote.deposit,
+                recipient: recipient_bigint,
+                workchain: parseInt(workchain),
+                snarkArtifacts: undefined
+            })
         const curve = await buildBls12381();
         const proofProc = unstringifyBigInts(proof);
         const pi_aS = g1Compressed(curve, proofProc.pi_a);
@@ -70,7 +79,7 @@ describe('DepositWithdraw', () => {
         const pi_b = Buffer.from(pi_bS, "hex");
         const pi_c = Buffer.from(pi_cS, "hex");
 
-        const verifier = await blockchain.treasury("verifier");
+
         console.log(publicSignals)
         const verifyResult = await depositWithdraw.sendWithdraw(
             verifier.getSender(),

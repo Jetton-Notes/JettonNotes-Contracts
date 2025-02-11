@@ -1,5 +1,5 @@
 
-import { deposit, generateNoteWithdrawProof, hexToBigint, parseNote, SplitAddress, verifyThreePublicSignals } from "../lib/notes";
+import { deposit, generateNoteWithdrawProof, hexToBigint, parseNote, SplitAddress, verifyFourPublicSignals } from "../lib/cryptonotes";
 import fs from "fs";
 import assert from "assert";
 import { Address } from "@ton/core";
@@ -13,14 +13,14 @@ describe("Proof test", () => {
 
         const recipient_address = Address.parse("UQB9_eAKXGpTlx9I8qrkSjHMiDomWTrv6G7fBBb5Wj10_v-v");
 
-        const splitRaw = SplitAddress(recipient_address.toRawString());
+        const [workchain, splitRawAddress] = SplitAddress(recipient_address.toRawString());
 
-        const recipient_bigint = hexToBigint(splitRaw);
+        const recipient_bigint = hexToBigint(splitRawAddress);
 
-        const { proof, publicSignals } = await generateNoteWithdrawProof({ deposit: parsedNote.deposit, recipient: recipient_bigint, snarkArtifacts: undefined })
+        const { proof, publicSignals } = await generateNoteWithdrawProof({ deposit: parsedNote.deposit, recipient: recipient_bigint, workchain: parseInt(workchain), snarkArtifacts: undefined })
         const verificationKeyFile = fs.readFileSync("circuits/verification_key.json", "utf-8");
         const verificationKey = JSON.parse(verificationKeyFile);
-        const res = await verifyThreePublicSignals(verificationKey, { proof, publicSignals });
+        const res = await verifyFourPublicSignals(verificationKey, { proof, publicSignals });
         assert.equal(res, true);
 
     })

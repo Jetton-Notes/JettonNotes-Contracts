@@ -4,10 +4,6 @@
 #include "storage.fc";
 #include "verifier.fc";
 
-;; global int ctx_res;
-
-
-
 ;; recv_internal is the main function of the contract and is called when it receives a message from other contracts
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if (in_msg_body.slice_empty?()) { ;; ignore all empty messages
@@ -20,12 +16,19 @@
         return ();
     }
 
+    slice sender_address = cs~load_msg_addr();
+    (int workchain,int addr) = parse_std_addr(sender_address);
+
+   ;;TODO: Get from the Dict and Set to the dict
+   ;;Create message encoders and decoders, kind of like a struct but stored in the dict per key
+
     ;; cell dict = storage::load_data(); ;; here we get the dict from storage
  
 
     int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
     int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
 
+    
     if(op == op::deposit){
         ;;Deposit tBTC jettons with a commitment and save them into a dictionary
 
@@ -50,17 +53,15 @@
         int pubInput0 = in_msg_body~verifier::load_newint(); ;; This is the nullifierHash
         int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
 
-        ;;Replace pubInput2 with the address of the sender
-        int pubInput2 = in_msg_body~verifier::load_newint(); ;; This should be the address of the recipient
+;;        int pubInput2 = in_msg_body~verifier::load_newint();
         
-        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,pubInput2);
+;;        int pubInput3 = in_msg_body~verifier::load_newint();
+
+        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, addr ); ;; addr, workchain); ;;Using the sender's address for the pubInput2
         
-         ~dump(verificationResult);
+        ;;  ~dump(verificationResult);
 
          throw_if(exec::invalid_proof, verificationResult == 0);
-
-        ;;TODO: learn how throw unless works because it just fails whatever i use it for
-        ;; throw_unless(exec::invalid_proof, verificationResult == ); ;;If the verification result is 0, throw error
 
         ;; (slice deposit,int found) = dict.idict_get?(dict,256,pubInput1); ;;Pubinput 1 should be the commitment
 
@@ -86,7 +87,7 @@
 (slice) get_deposit(int commitment) method_id {
     cell dict = storage::load_data();
     
-     (slice payload, int success) = dict.idict_get?(256, commitment);
+     (slice payload, int success) = dict.udict_get?(256, commitment);
 
     throw_unless(exec::deposit_not_found,success);
 
