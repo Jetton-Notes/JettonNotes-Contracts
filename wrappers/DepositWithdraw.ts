@@ -1,4 +1,4 @@
-import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode } from '@ton/core';
+import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode, TupleBuilder } from '@ton/core';
 
 export type DepositWithdrawConfig = {
     id: number;
@@ -35,7 +35,27 @@ export class DepositWithdraw implements Contract {
         });
     }
 
-    // async sendDeposit(provider: ContractProvider, via: Sender){}
+    //TODO: This is for testning purposes now, it will just encode depositData
+    async sendDeposit(provider: ContractProvider, via: Sender, opts: {
+        value: bigint,
+        queryID?: number,
+        commitment: bigint,
+        depositAmount: bigint
+    }) {
+        await provider.internal(via, {
+            value: opts.value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell()
+                .storeUint(Opcodes.deposit, 32)
+                .storeUint(opts.queryID ?? 0, 64)
+                .storeRef(
+                    beginCell()
+                        .storeUint(opts.commitment, 256)
+                        .storeCoins(opts.depositAmount)
+                ).endCell()
+        })
+
+    }
 
     async sendWithdraw(
         provider: ContractProvider,
@@ -156,4 +176,17 @@ export class DepositWithdraw implements Contract {
     //     const result = await provider.get('get_res', []);
     //     return result.stack.readNumber();
     // }
+
+    async getDeposit(provider: ContractProvider, commitmentHash: bigint) {
+        const result = await provider.get("get_deposit", [{ type: "int", value: commitmentHash }])
+        const commitment = result.stack.readBigNumber();
+        const nullifier = result.stack.readBigNumber();
+        const depositAmount = result.stack.readBigNumber();
+
+        return {
+            commitment, nullifier, depositAmount
+        }
+
+    }
 }
+
