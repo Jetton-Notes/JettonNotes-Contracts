@@ -1,7 +1,7 @@
 
 //@ts-nocheck
 import { utils } from "ffjavascript";
-import {poseidon1,poseidon2 } from "poseidon-bls12381";
+import { poseidon1, poseidon2 } from "poseidon-bls12381";
 
 import { groth16 } from "snarkjs"
 import crypto from "crypto";
@@ -10,12 +10,14 @@ export function rbigint(): bigint { return utils.leBuff2int(crypto.randomBytes(3
 
 
 // Generates the proofs for verification! 
-export async function generateNoteWithdrawProof({ deposit, recipient, snarkArtifacts }) {
+export async function generateNoteWithdrawProof({ deposit, recipient, workchain, snarkArtifacts }) {
     console.log("Generate proof start");
+    console.log(workchain);
     const input = {
         nullifierHash: deposit.nullifierHash,
         commitmentHash: deposit.commitment,
         recipient,
+        workchain,
         // private snark inputs
         nullifier: deposit.nullifier,
         secret: deposit.secret
@@ -44,13 +46,15 @@ export async function generateNoteWithdrawProof({ deposit, recipient, snarkArtif
  * @returns True if the proof is valid, false otherwise.
  */
 
-export function verifyThreePublicSignals(verificationKey, { proof, publicSignals }) {
+export function verifyFourPublicSignals(verificationKey, { proof, publicSignals }) {
     return groth16.verify(
         verificationKey,
         [
             publicSignals[0],
             publicSignals[1],
-            publicSignals[2]
+            publicSignals[2],
+            publicSignals[3]
+
         ],
         proof
     )
@@ -115,7 +119,7 @@ export async function parseNote(noteString) {
 
 
 export const SplitAddress = (addrString: string) => {
-    return addrString.split(":")[1];
+    return addrString.split(":");
 }
 
 export const hexToBigint = (hex: string) => {
@@ -124,33 +128,33 @@ export const hexToBigint = (hex: string) => {
 
 
 export function g1Compressed(curve, p1Raw) {
-  let p1 = curve.G1.fromObject(p1Raw);
+    let p1 = curve.G1.fromObject(p1Raw);
 
-  let buff = new Uint8Array(48);
-  curve.G1.toRprCompressed(buff, 0, p1);
-  // convert from ffjavascript to blst format
-  if (buff[0] & 0x80) {
-    buff[0] |= 32;
-  }
-  buff[0] |= 0x80;
-  return toHexString(buff);
+    let buff = new Uint8Array(48);
+    curve.G1.toRprCompressed(buff, 0, p1);
+    // convert from ffjavascript to blst format
+    if (buff[0] & 0x80) {
+        buff[0] |= 32;
+    }
+    buff[0] |= 0x80;
+    return toHexString(buff);
 }
 
 export function g2Compressed(curve, p2Raw) {
-  let p2 = curve.G2.fromObject(p2Raw);
+    let p2 = curve.G2.fromObject(p2Raw);
 
-  let buff = new Uint8Array(96);
-  curve.G2.toRprCompressed(buff, 0, p2);
-  // convert from ffjavascript to blst format
-  if (buff[0] & 0x80) {
-    buff[0] |= 32;
-  }
-  buff[0] |= 0x80;
-  return toHexString(buff);
+    let buff = new Uint8Array(96);
+    curve.G2.toRprCompressed(buff, 0, p2);
+    // convert from ffjavascript to blst format
+    if (buff[0] & 0x80) {
+        buff[0] |= 32;
+    }
+    buff[0] |= 0x80;
+    return toHexString(buff);
 }
 
 export function toHexString(byteArray) {
-  return Array.from(byteArray, function (byte) {
-    return ('0' + (byte & 0xFF).toString(16)).slice(-2);
-  }).join("");
+    return Array.from(byteArray, function (byte) {
+        return ('0' + (byte & 0xFF).toString(16)).slice(-2);
+    }).join("");
 }
