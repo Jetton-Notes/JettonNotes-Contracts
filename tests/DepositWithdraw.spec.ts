@@ -1,5 +1,5 @@
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
-import { Address, Cell, toNano } from '@ton/core';
+import { Cell, toNano } from '@ton/core';
 import { DepositWithdraw } from '../wrappers/DepositWithdraw';
 import '@ton/test-utils';
 import { compile } from '@ton/blueprint';
@@ -76,7 +76,6 @@ describe('DepositWithdraw', () => {
         })
         const dict = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
 
-        expect(dict.commitment).toBe(parsedNote.deposit.commitment);
 
         expect(dict.nullifier).toBe(0n);
         expect(dict.depositAmount).toBe(toNano("0.01"))
@@ -91,6 +90,7 @@ describe('DepositWithdraw', () => {
                 depositAmount: toNano("0.01")
             }
         )
+
         expect(depositResult.transactions).toHaveTransaction({
             from: depositor.address,
             to: depositWithdraw.address,
@@ -120,15 +120,11 @@ describe('DepositWithdraw', () => {
 
         const dict1 = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
 
-        expect(dict1.commitment).toBe(parsedNote.deposit.commitment);
-
         expect(dict1.nullifier).toBe(0n);
         expect(dict1.depositAmount).toBe(toNano("0.01"))
 
 
         const dict2 = await depositWithdraw.getDeposit(parsedNote2.deposit.commitment);
-
-        expect(dict2.commitment).toBe(parsedNote2.deposit.commitment);
 
         expect(dict2.nullifier).toBe(0n);
         expect(dict2.depositAmount).toBe(toNano("0.01"))
@@ -198,7 +194,6 @@ describe('DepositWithdraw', () => {
 
         const dict1 = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
 
-        expect(dict1.commitment).toBe(parsedNote.deposit.commitment);
 
         expect(dict1.nullifier).toBe(parsedNote.deposit.nullifierHash);
         expect(dict1.depositAmount).toBe(toNano("0.01"));

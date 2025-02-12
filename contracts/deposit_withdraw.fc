@@ -24,10 +24,10 @@
 
     cell dict = storage::load_data(); ;; here we get the dict from storage
  
-
     int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
     int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
 
+    ;; TODO: It will be transfer notify
     
     if(op == op::deposit){
         cell deposit_data = in_msg_body~load_ref();
@@ -36,7 +36,6 @@
         int depositAmount = s~load_coins();
 
         cell packedDepositData = packing::pack_depositData(
-            commitment,
             0,
             depositAmount);
 
@@ -72,7 +71,7 @@
         
         throw_unless(exec::deposit_not_found, found); ;; If the Deposit is not found, throw
 
-        (int commitment, int nullifierHash, int depositAmount) = packing::unpack_depositData(payload);
+        (int nullifierHash, int depositAmount) = packing::unpack_depositData(payload);
         
         ;; Check if the deposit was withdrawn already, if the nullifierHash is zero then it was not withrawn
         throw_if(exec::deposit_nullified, nullifierHash != 0);
@@ -81,13 +80,12 @@
 
         ;;Nullify the amount
         cell packedDepositData = packing::pack_depositData(
-            commitment,
-            pubInput0,
+            pubInput0, ;;NullifierHash
             depositAmount); ;;This deposit amount is nullified now
 
 
         ;;Upate the dict
-        cell newDict = udict_set(dict,256,commitment,packedDepositData.begin_parse());
+        cell newDict = udict_set(dict,256,pubInput1,packedDepositData.begin_parse());
 
         storage::save_data(newDict);
 
@@ -99,7 +97,7 @@
 
 ;; Checks if there is a deposit at commitment and returns the slice stored at that index in the dict
 ;; The slice contains the deposit amount and if it's been nullified or not
-(int,int,int) get_deposit(int commitment) method_id {
+(int,int) get_deposit(int commitment) method_id {
     cell dict = storage::load_data();
     
      (slice payload, int success) = dict.udict_get?(256, commitment);

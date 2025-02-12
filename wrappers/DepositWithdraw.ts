@@ -179,12 +179,11 @@ export class DepositWithdraw implements Contract {
 
     async getDeposit(provider: ContractProvider, commitmentHash: bigint) {
         const result = await provider.get("get_deposit", [{ type: "int", value: commitmentHash }])
-        const commitment = result.stack.readBigNumber();
         const nullifier = result.stack.readBigNumber();
         const depositAmount = result.stack.readBigNumber();
 
         return {
-            commitment, nullifier, depositAmount
+             nullifier, depositAmount
         }
 
     }

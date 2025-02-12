@@ -1,19 +1,15 @@
 
-;;TODO: maybe I don't even need the commitment here, since that's the dict key!
 cell packing::pack_depositData(
-    int commitment, 
     int nullifierHash, 
     int depositAmount) inline {
     return begin_cell()
-    .store_uint(commitment,256)
     .store_uint(nullifierHash,256) ;; If the nullifier hash is zero then it's still valid, if not zero then it's nullified
     .store_coins(depositAmount)
     .end_cell();
 }
 
-(int,int,int) packing::unpack_depositData(slice payload) impure inline {
+(int,int) packing::unpack_depositData(slice payload) impure inline {
     return (
-        payload~load_uint(256),
         payload~load_uint(256),
         payload~load_coins()
     );
