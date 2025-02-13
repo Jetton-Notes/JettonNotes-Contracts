@@ -1,5 +1,5 @@
 
-cell packing::pack_depositData(
+cell pack::depositData(
     int nullifierHash, 
     int depositAmount) inline {
     return begin_cell()
@@ -8,9 +8,37 @@ cell packing::pack_depositData(
     .end_cell();
 }
 
-(int,int) packing::unpack_depositData(slice payload) impure inline {
+(int,int) unpack::depositData(slice payload) impure inline {
     return (
         payload~load_uint(256),
         payload~load_coins()
     );
+}
+
+;; Pack the Jetton refund message, sent when the wrong jetton is sent
+cell pack::refundMessage(
+    slice sender_address, 
+    int query_id,
+    int amount,
+    slice from_address,
+    int msg_value
+){
+    return   begin_cell()
+    .store_uint(0x18, 6)
+    .store_slice(sender_address)
+    .store_coins(0)
+    .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+    .store_ref(
+        begin_cell()
+            .store_uint(op::transfer, 32)
+            .store_uint(query_id, 64)
+            .store_coins(amount)
+            .store_slice(from_address)
+            .store_slice(from_address)
+            .store_uint(0, 1)
+            .store_coins(msg_value >= 50000000 ? msg_value - 50000000 : 0)
+            .store_uint(0, 1)
+            .end_cell()
+    )
+        .end_cell();
 }
