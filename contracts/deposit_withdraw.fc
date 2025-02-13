@@ -18,24 +18,71 @@
     }
 
     slice sender_address = cs~load_msg_addr();
-    (int workchain,int addr) = parse_std_addr(sender_address);
+    (int workchain,int sender_addr_hashpart) = parse_std_addr(sender_address);
 
    ;;Create message encoders and decoders, kind of like a struct but stored in the dict per key
 
-    cell dict = storage::load_data(); ;; here we get the dict from storage
  
     int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
     int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
 
+    if (op == op::excesses) { return (); }
+
+    cell dict = storage::load_data(); ;; here we get the dict from storage
+
     ;; TODO: It will be transfer notify
-    
+    if(op == op::transfer_notification){
+
+      ;;TODO: check if the jetton address is correct!
+      if(sender_addr_hashpart == jetton::TGBTC){
+
+        int depositAmount = in_msg_body~load_coins();
+
+        ;;The forward payload should have the commitment
+        ;;TODO: forward payload is a slice... then I need to take the uint from it!
+        
+        ;; slice forwardPayload = int_msg_body~load_ref();
+        ;;TODO: I need to have a forwarded data contain the commitment as the identifier
+
+        ;;Then store the deposit like op::deposit
+          cell packedDepositData = pack::depositData(
+            0,
+            depositAmount
+            );
+
+        ;;TODO: the commitment is in the forward payload!
+        ;; (cell newDict, int success)  =  udict_add?(dict, 256, commitment, packedDepositData.begin_parse());
+
+        ;;Check to make sure the commitment doesn't exit, yet
+        ;; throw_if(exec::deposit_already_exists, success == 0);
+
+        ;;TODO: Deposit tBTC jettons 
+
+        ;; Update the dict
+        ;;  storage::save_data(newDict);
+
+
+      } else {
+        ;; transfer unsupported tokens back
+         int amount = in_msg_body~load_coins();
+            slice from_address = in_msg_body~load_msg_addr();
+            send_raw_message(
+                pack::refundMessage(sender_address,query_id,amount,from_address,msg_value),
+                 64
+            );
+      }
+      return ();
+    }
+
+
+
     if(op == op::deposit){
         cell deposit_data = in_msg_body~load_ref();
         slice s = deposit_data.begin_parse();
         int commitment = s~load_uint(256);
         int depositAmount = s~load_coins();
 
-        cell packedDepositData = packing::pack_depositData(
+        cell packedDepositData = pack::depositData(
             0,
             depositAmount);
 
@@ -63,7 +110,7 @@
         ;;int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
         ;;int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender
 
-        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, addr ); ;;Using the sender's address for the pubInput2
+        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, sender_addr_hashpart ); ;;Using the sender's address for the pubInput2
         
         throw_if(exec::invalid_proof, verificationResult == 0);
 
@@ -71,7 +118,7 @@
         
         throw_unless(exec::deposit_not_found, found); ;; If the Deposit is not found, throw
 
-        (int nullifierHash, int depositAmount) = packing::unpack_depositData(payload);
+        (int nullifierHash, int depositAmount) = unpack::depositData(payload);
         
         ;; Check if the deposit was withdrawn already, if the nullifierHash is zero then it was not withrawn
         throw_if(exec::deposit_nullified, nullifierHash != 0);
@@ -79,7 +126,7 @@
         ;;TODO: Withdraw Jetton to the sender's address!
 
         ;;Nullify the amount
-        cell packedDepositData = packing::pack_depositData(
+        cell packedDepositData = pack::depositData(
             pubInput0, ;;NullifierHash
             depositAmount); ;;This deposit amount is nullified now
 
@@ -88,6 +135,10 @@
         cell newDict = udict_set(dict,256,pubInput1,packedDepositData.begin_parse());
 
         storage::save_data(newDict);
+
+
+        ;;TODO: send message to withdraw jetton token
+
 
         return ();
     };
@@ -104,5 +155,5 @@
 
     throw_unless(exec::deposit_not_found,success);
 
-    return packing::unpack_depositData(payload);
+    return unpack::depositData(payload);
 }
