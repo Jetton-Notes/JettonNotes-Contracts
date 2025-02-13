@@ -4,100 +4,104 @@
 #include "storage.fc";
 #include "verifier.fc";
 #include "packing.fc";
+#include "address.fc";
+#include "utils.fc";
 
 ;; recv_internal is the main function of the contract and is called when it receives a message from other contracts
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
-    if (in_msg_body.slice_empty?()) { ;; ignore all empty messages
-        return ();
-    }
-
     slice cs = in_msg_full.begin_parse();
     int flags = cs~load_uint(4);
     if (flags & 1) { ;; ignore all bounced messages
         return ();
     }
+   
+    storage::load_data(); 
 
     slice sender_address = cs~load_msg_addr();
     (int workchain,int sender_addr_hashpart) = parse_std_addr(sender_address);
 
-   ;;Create message encoders and decoders, kind of like a struct but stored in the dict per key
+  if (storage::init? == 0) {  ;; request jetton wallets' addresses after deploy
+        ;;This will initialize the contract
+        throw_unless(exc::incorrect_sender, address::is_creator_address(sender_address));
+        storage::init? = 1;
+        send_provide_wallet_address_message(storage::jetton_wallet_address);
+      
+        storage::save_data();
+        return ();
+    }
 
- 
+
+    if (in_msg_body.slice_empty?()) { ;; ignore empty messages
+        return ();
+    }
+
+    
     int op = in_msg_body~load_uint(32); ;; by convention, the first 32 bits of incoming message is the op
     int query_id = in_msg_body~load_uint(64); ;; also by convention, the next 64 bits contain the "query id", although this is not always the case
 
+    ;; The Jetton minter calls back with op::take_wallet_address, done on init
+
+    if (op == op::take_wallet_address) {  ;; change jetton wallet address (used only once)
+        slice reported_wallet_address = in_msg_body~load_msg_addr();
+        if (address::is_jetton_wallet_address(sender_address) & (storage::jetton_wallet_set == 0)) {
+            storage::jetton_wallet_address = reported_wallet_address;
+            storage::jetton_wallet_set = 1;
+        }
+
+        storage::save_data();
+        return ();
+    }
+ 
     if (op == op::excesses) { return (); }
-
-    cell dict = storage::load_data(); ;; here we get the dict from storage
-
-    ;; TODO: It will be transfer notify
+     
+    ;;Update the dict so it's accessed from a global storage variable
     if(op == op::transfer_notification){
+    
+        int transferred_jettons = in_msg_body~load_coins();
+        slice from_address = in_msg_body~load_msg_addr(); ;;Owner address
 
-      ;;TODO: check if the jetton address is correct!
-      if(sender_addr_hashpart == jetton::TGBTC){
+        cell forwardPayload = in_msg_body~load_ref();
+        slice payload = forwardPayload.begin_parse();
+        int commitment = payload~load_uint(256);
+       ~dump(commitment);
+      ;;Forward payload should contain a 256 bit integer and the address must be the correct jetton walelt address
+      ;;TODO: Test this check with invalid jetton address!!
+      ifnot (address::is_jetton_wallet_address(sender_address) & commitment != 0){
+        ~dump(12345);
+        ;;Refund invalid jettons sent here
+        send_jettons(
+            query_id,
+            transferred_jettons,
+            from_address,
+            from_address,
+            sender_address,
+            0,
+            mode::carry_remaining_gas,
+            0,
+            begin_cell().store_uint(0,32).store_slice("Invalid Jettons").end_cell());
+      }
 
-        int depositAmount = in_msg_body~load_coins();
-
-        ;;The forward payload should have the commitment
-        ;;TODO: forward payload is a slice... then I need to take the uint from it!
         
-        ;; slice forwardPayload = int_msg_body~load_ref();
-        ;;TODO: I need to have a forwarded data contain the commitment as the identifier
-
         ;;Then store the deposit like op::deposit
           cell packedDepositData = pack::depositData(
-            0,
-            depositAmount
+            0, ;;Nullified is false
+            transferred_jettons
             );
 
-        ;;TODO: the commitment is in the forward payload!
-        ;; (cell newDict, int success)  =  udict_add?(dict, 256, commitment, packedDepositData.begin_parse());
+         ;;Save the 
+         (cell newDict, int success)  =  udict_add?(storage::deposits_dict, 256, commitment, packedDepositData.begin_parse());
 
-        ;;Check to make sure the commitment doesn't exit, yet
-        ;; throw_if(exec::deposit_already_exists, success == 0);
+        ;;Check to make sure the commitment exits,
+        throw_if(exec::deposit_already_exists, success == 0);
 
-        ;;TODO: Deposit tBTC jettons 
+         storage::deposits_dict = newDict;
 
         ;; Update the dict
-        ;;  storage::save_data(newDict);
+        storage::save_data();
 
-
-      } else {
-        ;; transfer unsupported tokens back
-         int amount = in_msg_body~load_coins();
-            slice from_address = in_msg_body~load_msg_addr();
-            send_raw_message(
-                pack::refundMessage(sender_address,query_id,amount,from_address,msg_value),
-                 64
-            );
-      }
       return ();
     }
 
-
-
-    if(op == op::deposit){
-        cell deposit_data = in_msg_body~load_ref();
-        slice s = deposit_data.begin_parse();
-        int commitment = s~load_uint(256);
-        int depositAmount = s~load_coins();
-
-        cell packedDepositData = pack::depositData(
-            0,
-            depositAmount);
-
-        
-         (cell newDict, int success)  =  udict_add?(dict, 256, commitment, packedDepositData.begin_parse());
-
-        ;;Check to make sure the commitment doesn't exit, yet
-        throw_if(exec::deposit_already_exists, success == 0);
-
-        ;;TODO: Deposit tBTC jettons 
-
-        ;; Update the dict
-         storage::save_data(newDict);
-        return ();
-    }
 
     if(op == op::withdraw){
         ;;Call the ZKP verifier here
@@ -114,7 +118,7 @@
         
         throw_if(exec::invalid_proof, verificationResult == 0);
 
-        (slice payload,int found) = dict.udict_get?(256,pubInput1); ;;Get the withdraw data by commitment
+        (slice payload,int found) = storage::deposits_dict.udict_get?(256,pubInput1); ;;Get the withdraw data by commitment
         
         throw_unless(exec::deposit_not_found, found); ;; If the Deposit is not found, throw
 
@@ -123,8 +127,6 @@
         ;; Check if the deposit was withdrawn already, if the nullifierHash is zero then it was not withrawn
         throw_if(exec::deposit_nullified, nullifierHash != 0);
 
-        ;;TODO: Withdraw Jetton to the sender's address!
-
         ;;Nullify the amount
         cell packedDepositData = pack::depositData(
             pubInput0, ;;NullifierHash
@@ -132,13 +134,27 @@
 
 
         ;;Upate the dict
-        cell newDict = udict_set(dict,256,pubInput1,packedDepositData.begin_parse());
+        cell newDict = udict_set(storage::deposits_dict,256,pubInput1,packedDepositData.begin_parse());
 
-        storage::save_data(newDict);
+        storage::deposits_dict = newDict;
+    
+        storage::save_data();
 
 
-        ;;TODO: send message to withdraw jetton token
-
+        ;;Send message to withdraw jetton token
+        send_jettons(
+            query_id,
+            depositAmount,
+            sender_address,
+            sender_address,
+            storage::jetton_wallet_address,
+            0,
+            mode::carry_remaining_gas,
+            0,
+            begin_cell()
+            .store_uint(0,32)
+            .store_slice("Jettons Withdrawn from Crypto note")
+            .end_cell());
 
         return ();
     };
@@ -149,9 +165,9 @@
 ;; Checks if there is a deposit at commitment and returns the slice stored at that index in the dict
 ;; The slice contains the deposit amount and if it's been nullified or not
 (int,int) get_deposit(int commitment) method_id {
-    cell dict = storage::load_data();
+    storage::load_data();
     
-     (slice payload, int success) = dict.udict_get?(256, commitment);
+     (slice payload, int success) = storage::deposits_dict.udict_get?(256, commitment);
 
     throw_unless(exec::deposit_not_found,success);
 
