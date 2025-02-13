@@ -1,8 +1,5 @@
 
 
-{- SUPPORTED JETTON ADDRESS FOR MAIN CONTRACT-}
-const int jetton::TGBTC = 0;  ;;TODO: the master contract address
-
 {- EXCEPTIONS FOR MAIN CONTRACT-}
 
 const int exec::invalid_proof = 50; ;;ZKP verification failed
@@ -49,11 +46,9 @@ const int WORKCHAIN = 0;
 
 {- GAS -}
 
-const int PROVIDE_ADDR_GAS = 20000;
+;;const int PROVIDE_ADDR_GAS = 20000; ;;Old gas amount for 
+const int PROVIDE_ADDR_GAS = 40000; ;;0.04 TON
 const int JETTON_TRANSFER_GAS = 55000;
-const int CHANGE_STATE_SAFE_GAS = 10000;
-const int CLAIM_SAFE_GAS = 200000;
-const int DEPLOY_SAFE_GAS = 10000; ;; 0.01 TON
 
 const int gas::min_tons_for_storage = 50000000; ;; 0.05 TON
 
