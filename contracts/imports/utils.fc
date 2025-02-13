@@ -1,0 +1,20 @@
+#include "stdlib.fc";
+#include "workchain.fc";
+#include "constants.fc";
+
+() send_msg(slice to_address, int amount, int op, int query_id, builder payload, int sending_mode) impure inline {
+    var msg = begin_cell()
+        .store_uint(0x10, 6) ;; nobounce - int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool src:MsgAddress -> 010000
+        .store_slice(to_address)
+        .store_coins(amount)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .store_uint(op, 32)
+        .store_uint(query_id, 64);
+
+    if (~ null?(payload)) {
+        msg = msg.store_builder(payload);
+    }
+
+    send_raw_message(msg.end_cell(), sending_mode);
+}
+
