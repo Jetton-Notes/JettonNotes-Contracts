@@ -1,0 +1,9 @@
+#include "storage.fc";
+
+(int) address::is_jetton_wallet_address(slice _addr) inline {
+    return equal_slices(_addr, storage::jetton_wallet_address);
+}
+
+(int) address::is_creator_address(slice _addr) inline {
+    return equal_slices(_addr, storage::creator_address);
+}
