@@ -2,30 +2,41 @@
 
 ;;The C4 register contins a uint that provides a check to see if the storage is initialized, and a dict.
 
-cell storage::load_data() inline {
+global int storage::init?;
+
+global slice storage::jetton_wallet_address; ;; initially here is jetton_master_address and later smart_contract gets it's own jetton_wallet_address
+
+global int storage::jetton_wallet_set; ;;Was the jetton wallet set for this? no 0
+
+global slice storage::creator_address;
+global cell storage::deposits_dict;
+
+() storage::load_data() impure inline {
+    
     cell data = get_data();
     slice ds = data.begin_parse();
-    int init? = ds~load_uint(64);
-    ;;TODO: refactor this
-    if(init? == 0){
-        ;; The dict was not initialized
-        ;;But the ~load_uint will remove the contant of the slice
-    }
+    storage::init? = ds~load_uint(1);
 
-    ;;NOTE get_data is not empty on initial load...
+    storage::jetton_wallet_address = ds~load_msg_addr();
+    
+    storage::jetton_wallet_set = ds~load_uint(1);
+
+    storage::creator_address = ds~load_msg_addr();
 
     if (ds.slice_bits() == 0){
-        return new_dict();
+        storage::deposits_dict = new_dict();
     } else {
-        return preload_dict(ds);
+        storage::deposits_dict = preload_dict(ds);
     }
 }
 
-;;TODO: add another uint to store all the deposit amounts?
-() storage::save_data(cell data) impure {
+() storage::save_data() impure {
     set_data(
         begin_cell()
-        .store_uint(1,64)
-        .store_dict(data)
+        .store_uint(storage::init?,1)
+        .store_slice(storage::jetton_wallet_address)
+        .store_uint(storage::jetton_wallet_set,1)
+        .store_slice(storage::creator_address)
+        .store_dict(storage::deposits_dict)
         .end_cell());
 }
