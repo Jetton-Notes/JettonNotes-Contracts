@@ -1,16 +1,33 @@
 import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode, TupleBuilder } from '@ton/core';
 
 export type DepositWithdrawConfig = {
-    id: number;
-    counter: number;
+    init: number;
+    jetton_wallet_address: Address,
+    jetton_wallet_set: number,
+    creator_address: Address
 };
 
 export function depositWithdrawConfigToCell(config: DepositWithdrawConfig): Cell {
-    return beginCell().storeUint(config.id, 32).storeUint(config.counter, 32).endCell();
+    return beginCell()
+        .storeBit(config.init)
+        .storeAddress(config.jetton_wallet_address)
+        .storeBit(config.jetton_wallet_set)
+        .storeAddress(config.creator_address)
+        .endCell();
+}
+
+export type DepositForwardPayload = {
+    commitment: bigint
+}
+
+export function depositJettonsForwardPayload(config: DepositForwardPayload) {
+    return beginCell()
+        .storeUint(config.commitment, 256)
+        .endCell()
 }
 
 export const Opcodes = {
-    deposit: 0x3b3ca17,
+    // deposit: 0x3b3ca17,
     withdraw: 0x4b4ccb18,
 };
 
@@ -36,26 +53,26 @@ export class DepositWithdraw implements Contract {
     }
 
     //TODO: This is for testning purposes now, it will just encode depositData
-    async sendDeposit(provider: ContractProvider, via: Sender, opts: {
-        value: bigint,
-        queryID?: number,
-        commitment: bigint,
-        depositAmount: bigint
-    }) {
-        await provider.internal(via, {
-            value: opts.value,
-            sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: beginCell()
-                .storeUint(Opcodes.deposit, 32)
-                .storeUint(opts.queryID ?? 0, 64)
-                .storeRef(
-                    beginCell()
-                        .storeUint(opts.commitment, 256)
-                        .storeCoins(opts.depositAmount)
-                ).endCell()
-        })
+    // async sendDeposit(provider: ContractProvider, via: Sender, opts: {
+    //     value: bigint,
+    //     queryID?: number,
+    //     commitment: bigint,
+    //     depositAmount: bigint
+    // }) {
+    //     await provider.internal(via, {
+    //         value: opts.value,
+    //         sendMode: SendMode.PAY_GAS_SEPARATELY,
+    //         body: beginCell()
+    //             .storeUint(Opcodes.deposit, 32)
+    //             .storeUint(opts.queryID ?? 0, 64)
+    //             .storeRef(
+    //                 beginCell()
+    //                     .storeUint(opts.commitment, 256)
+    //                     .storeCoins(opts.depositAmount)
+    //             ).endCell()
+    //     })
 
-    }
+    // }
 
     async sendWithdraw(
         provider: ContractProvider,
@@ -183,7 +200,7 @@ export class DepositWithdraw implements Contract {
         const depositAmount = result.stack.readBigNumber();
 
         return {
-             nullifier, depositAmount
+            nullifier, depositAmount
         }
 
     }
