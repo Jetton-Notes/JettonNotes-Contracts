@@ -10,9 +10,7 @@ import { JettonWallet } from '../wrappers/Jetton/JettonWallet';
 import { JettonMinter } from '../wrappers/Jetton/JettonMinter';
 import { BLOCKCHAIN_START_TIME, INITIAL_JETTON_BALANCE, openContractJettonMinter } from './utils';
 
-//TODO: write the jetton contract tests here
 
-//TODO: then I can rewrite the deposit function
 
 describe("Jetton", () => {
 
