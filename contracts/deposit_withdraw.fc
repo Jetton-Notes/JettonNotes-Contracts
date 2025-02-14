@@ -54,7 +54,6 @@
  
     if (op == op::excesses) { return (); }
      
-    ;;Update the dict so it's accessed from a global storage variable
     if(op == op::transfer_notification){
     
         int transferred_jettons = in_msg_body~load_coins();
@@ -63,7 +62,7 @@
         cell forwardPayload = in_msg_body~load_ref();
         slice payload = forwardPayload.begin_parse();
         int commitment = payload~load_uint(256);
-      ;;Forward payload should contain a 256 bit integer and the address must be the correct jetton walelt address
+      ;;Forward payload should contain a 256 bit integer and the address must be the correct jetton wallet address
       
       ifnot (address::is_jetton_wallet_address(sender_address) & commitment != 0){
         ;;Refund invalid jettons sent here
@@ -80,7 +79,7 @@
       }
 
         
-        ;;Then store the deposit like op::deposit
+        ;;Then store the deposit
           cell packedDepositData = pack::depositData(
             0, ;;Nullified is false
             transferred_jettons
@@ -102,13 +101,14 @@
 
 
     if(op == op::withdraw){
-        ;;Call the ZKP verifier here
+        ;;Call the ZKP verifier in withraw and then transfer the jettons out
         slice pi_a = in_msg_body~verifier::load_p1();
         slice pi_b = in_msg_body~verifier::load_p2();
         slice pi_c = in_msg_body~verifier::load_p1();
 
         int pubInput0 = in_msg_body~verifier::load_newint(); ;; This is the nullifierHash
         int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
+        ;;Unused public inputs which are instead taken from the senders address
         ;;int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
         ;;int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender
 
