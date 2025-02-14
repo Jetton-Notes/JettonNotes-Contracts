@@ -63,11 +63,9 @@
         cell forwardPayload = in_msg_body~load_ref();
         slice payload = forwardPayload.begin_parse();
         int commitment = payload~load_uint(256);
-       ~dump(commitment);
       ;;Forward payload should contain a 256 bit integer and the address must be the correct jetton walelt address
-      ;;TODO: Test this check with invalid jetton address!!
+      
       ifnot (address::is_jetton_wallet_address(sender_address) & commitment != 0){
-        ~dump(12345);
         ;;Refund invalid jettons sent here
         send_jettons(
             query_id,

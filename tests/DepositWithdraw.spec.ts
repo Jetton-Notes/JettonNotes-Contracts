@@ -47,6 +47,7 @@ describe('DepositWithdraw', () => {
 
     let depositWithdraw_Deploy: SendMessageResult;
 
+    let deposit_contract_jetton_wallet: SandboxContract<JettonWallet>;
 
 
     beforeAll(async () => {
@@ -76,8 +77,6 @@ describe('DepositWithdraw', () => {
         jetton_sender_jetton_wallet = await jettonUserWallet(jetton_sender.address);
         not_jetton_sender_jetton_wallet = await jettonUserWallet(not_jetton_sender.address);
         jetton_receiver_jetton_wallet = await jettonUserWallet(jetton_receiver.address);
-
-
 
         await jettonMinter.sendMint(
             jetton_sender.getSender(),
@@ -114,8 +113,6 @@ describe('DepositWithdraw', () => {
         expect(await jetton_sender_jetton_wallet.getJettonBalance()).toBe(INITIAL_JETTON_BALANCE);
         expect(await jetton_receiver_jetton_wallet.getJettonBalance()).toBe(INITIAL_JETTON_BALANCE);
 
-
-
         depositWithdraw = blockchain.openContract(
             DepositWithdraw.createFromConfig(
                 {
@@ -144,6 +141,8 @@ describe('DepositWithdraw', () => {
             success: true,
         });
 
+        deposit_contract_jetton_wallet = await jettonUserWallet(depositWithdraw.address);
+
 
     });
 
@@ -168,6 +167,14 @@ describe('DepositWithdraw', () => {
         })
 
         it("should do a jetton deposit and save the commitment", async () => {
+            const balance_before_deposit = await jetton_sender_jetton_wallet.getJettonBalance();
+
+            expect(balance_before_deposit).toBe(toNano("1000"))
+
+
+
+            // const balance_of_deposit_contrac_before_deposit = await deposit_contract_jetton.getJettonBalance();
+
             depositMessageResult = await jetton_sender_jetton_wallet.sendTransfer(
                 jetton_sender.getSender(),
                 toNano("1.5"),
@@ -179,165 +186,77 @@ describe('DepositWithdraw', () => {
                 depositData
             );
 
+            let deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+
+            expect(deposit_contract_balance).toBe(depositedAmount);
+
             expect(depositMessageResult.transactions).toHaveTransaction({
                 from: jetton_sender.address,
                 to: jetton_sender_jetton_wallet.address,
                 success: true
             });
 
-            //Check if it set it... yeah!
-            const dict = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+            //Check if it set it... 
+            let dict = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
             expect(dict.nullifier).toBe(0n);
             expect(dict.depositAmount).toBe(toNano("1"));
 
+            const balance_after_deposit = await jetton_sender_jetton_wallet.getJettonBalance();
+            expect(balance_after_deposit).toBe(toNano("999"));
 
-            //TODO: withraw left!
+            //Withdraw the deposit via ZKP
+
+            const recipient_address = not_jetton_sender.address;
+            const [workchain, splitRawAddress] = SplitAddress(recipient_address.toRawString());
+
+
+            const recipient_bigint = hexToBigint(splitRawAddress);
+            const { proof, publicSignals } = await generateNoteWithdrawProof(
+                {
+                    deposit: parsedNote.deposit,
+                    recipient: recipient_bigint,
+                    workchain: parseInt(workchain),
+                    snarkArtifacts: undefined
+                })
+            const curve = await buildBls12381();
+            const proofProc = unstringifyBigInts(proof);
+            const pi_aS = g1Compressed(curve, proofProc.pi_a);
+            const pi_bS = g2Compressed(curve, proofProc.pi_b);
+            const pi_cS = g1Compressed(curve, proofProc.pi_c);
+            const pi_a = Buffer.from(pi_aS, "hex");
+            const pi_b = Buffer.from(pi_bS, "hex");
+            const pi_c = Buffer.from(pi_cS, "hex");
+
+            const verifyResult = await depositWithdraw.sendWithdraw(
+                not_jetton_sender.getSender(),
+                {
+                    pi_a: pi_a,
+                    pi_b: pi_b,
+                    pi_c: pi_c,
+                    pubInputs: publicSignals,
+                    value: toNano("0.15") //0.15 TON fee
+                });
+
+            expect(verifyResult.transactions).toHaveTransaction({
+                from: not_jetton_sender.address,
+                to: depositWithdraw.address,
+                success: true
+            })
+
+            deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+
+            expect(deposit_contract_balance).toBe(toNano("0"));
+
+            const withdrawn_value = await not_jetton_sender_jetton_wallet.getJettonBalance();
+
+            expect(withdrawn_value).toBe(INITIAL_JETTON_BALANCE + toNano("1"));
+
+            dict = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+
+            expect(dict.nullifier).toBe(parsedNote.deposit.nullifierHash);
+            expect(dict.depositAmount).toBe(toNano("1"));
 
         })
-
     })
 
-    // it("should call deposit and save the data to storage", async () => {
-    //     const noteString = await deposit({ currency: "tbtc", amount: 1 });
-    //     const parsedNote = await parseNote(noteString);
-
-    //     const depositor = await blockchain.treasury("depositor");
-
-    //     let depositResult = await depositWithdraw.sendDeposit(
-    //         depositor.getSender(), {
-    //         value: toNano("0.15"),
-    //         commitment: parsedNote.deposit.commitment,
-    //         depositAmount: toNano("0.01")
-    //     })
-
-    //     expect(depositResult.transactions).toHaveTransaction({
-    //         from: depositor.address,
-    //         to: depositWithdraw.address,
-    //         success: true
-    //     })
-    //     const dict = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
-
-
-    //     expect(dict.nullifier).toBe(0n);
-    //     expect(dict.depositAmount).toBe(toNano("0.01"))
-
-    //     //Now I save a new deposit...
-
-    //     depositResult = await depositWithdraw.sendDeposit(
-    //         depositor.getSender(),
-    //         {
-    //             value: toNano("0.15"),
-    //             commitment: parsedNote.deposit.commitment,
-    //             depositAmount: toNano("0.01")
-    //         }
-    //     )
-
-    //     expect(depositResult.transactions).toHaveTransaction({
-    //         from: depositor.address,
-    //         to: depositWithdraw.address,
-    //         success: false,
-    //         exitCode: 52
-    //     })
-
-    //     const noteString2 = await deposit({ currency: "tbtc", amount: 0.01 });
-    //     const parsedNote2 = await parseNote(noteString2);
-
-    //     depositResult = await depositWithdraw.sendDeposit(
-    //         depositor.getSender(),
-    //         {
-    //             value: toNano("0.15"),
-    //             commitment: parsedNote2.deposit.commitment,
-    //             depositAmount: toNano("0.01")
-    //         }
-    //     )
-
-    //     expect(depositResult.transactions).toHaveTransaction({
-    //         from: depositor.address,
-    //         to: depositWithdraw.address,
-    //         success: true
-    //     })
-
-    //     //Assert that now with new entries, the old one is still there!
-
-    //     const dict1 = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
-
-    //     expect(dict1.nullifier).toBe(0n);
-    //     expect(dict1.depositAmount).toBe(toNano("0.01"))
-
-
-    //     const dict2 = await depositWithdraw.getDeposit(parsedNote2.deposit.commitment);
-
-    //     expect(dict2.nullifier).toBe(0n);
-    //     expect(dict2.depositAmount).toBe(toNano("0.01"))
-
-    // })
-
-    // it("should withdraw", async () => {
-    //     const noteString = await deposit({ currency: "tbtc", amount: 1 });
-    //     const parsedNote = await parseNote(noteString);
-    //     const depositor = await blockchain.treasury("depositor");
-
-    //     let depositResult = await depositWithdraw.sendDeposit(
-    //         depositor.getSender(), {
-    //         value: toNano("0.15"),
-    //         commitment: parsedNote.deposit.commitment,
-    //         depositAmount: toNano("0.01")
-    //     })
-
-    //     expect(depositResult.transactions).toHaveTransaction({
-    //         from: depositor.address,
-    //         to: depositWithdraw.address,
-    //         success: true
-    //     })
-
-
-    //     const verifier = await blockchain.treasury("verifier");
-    //     const recipient_address = verifier.address;
-    //     const [workchain, splitRawAddress] = SplitAddress(recipient_address.toRawString());
-
-
-    //     const recipient_bigint = hexToBigint(splitRawAddress);
-    //     const { proof, publicSignals } = await generateNoteWithdrawProof(
-    //         {
-    //             deposit: parsedNote.deposit,
-    //             recipient: recipient_bigint,
-    //             workchain: parseInt(workchain),
-    //             snarkArtifacts: undefined
-    //         })
-    //     const curve = await buildBls12381();
-    //     const proofProc = unstringifyBigInts(proof);
-    //     const pi_aS = g1Compressed(curve, proofProc.pi_a);
-    //     const pi_bS = g2Compressed(curve, proofProc.pi_b);
-    //     const pi_cS = g1Compressed(curve, proofProc.pi_c);
-    //     const pi_a = Buffer.from(pi_aS, "hex");
-    //     const pi_b = Buffer.from(pi_bS, "hex");
-    //     const pi_c = Buffer.from(pi_cS, "hex");
-
-
-
-    //     const verifyResult = await depositWithdraw.sendWithdraw(
-    //         verifier.getSender(),
-    //         {
-    //             pi_a: pi_a,
-    //             pi_b: pi_b,
-    //             pi_c: pi_c,
-    //             pubInputs: publicSignals,
-    //             value: toNano("0.15") //0.15 TON fee
-    //         });
-
-    //     expect(verifyResult.transactions).toHaveTransaction({
-    //         from: verifier.address,
-    //         to: depositWithdraw.address,
-    //         success: true
-    //     })
-
-    //     // Can do fetching with public view function to check a result
-
-    //     const dict1 = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
-
-
-    //     expect(dict1.nullifier).toBe(parsedNote.deposit.nullifierHash);
-    //     expect(dict1.depositAmount).toBe(toNano("0.01"));
-
-    // })
 });
