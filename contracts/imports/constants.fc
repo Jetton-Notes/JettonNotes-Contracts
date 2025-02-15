@@ -6,13 +6,19 @@ const int exec::invalid_proof = 50; ;;ZKP verification failed
 const int exec::deposit_not_found = 51; ;;The Deposit was not found in the dict
 const int exec::deposit_already_exists = 52;
 const int exec::deposit_nullified = 53;
-
+const int exec::missing_transferto_commitment = 54;
+const int exec::missing_transferto_amount = 55;
+const int exec::missing_utxo_commitment = 56;
+const int exec::transferto_nullified = 57;
+const int exec::utxo_nullified = 58;
+const int exec::deposit_amount_invalid = 59;
 {- OP-CODES FOR MAIN CONTRACT-}
 
 ;;TODO: op::deposit will be deprecated to use transfer_notification instead
 const op::deposit = 0x3b3ca17; ;;The opcode to deposit jettons
 
 const op::withdraw = 0x4b4ccb18; ;;The opcode to withdraw jettons
+const op::utxo_withdraw = 0x5b5ccb29; ;;The opcode to withdraw by creating new notes
 
 const int op::transfer = 0xf8a7ea5;
 const int op::burn = 0x595f07bc;
