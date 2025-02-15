@@ -146,7 +146,7 @@ describe('DepositWithdraw', () => {
 
     });
 
-    describe("Deposits and withraws", () => {
+    describe("Deposits and withdraws", () => {
 
         let depositedAmount: bigint;
         let depositMessageResult: SendMessageResult;
@@ -170,8 +170,6 @@ describe('DepositWithdraw', () => {
             const balance_before_deposit = await jetton_sender_jetton_wallet.getJettonBalance();
 
             expect(balance_before_deposit).toBe(toNano("1000"))
-
-
 
             // const balance_of_deposit_contrac_before_deposit = await deposit_contract_jetton.getJettonBalance();
 
@@ -254,9 +252,165 @@ describe('DepositWithdraw', () => {
             dict = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
 
             expect(dict.nullifier).toBe(parsedNote.deposit.nullifierHash);
-            expect(dict.depositAmount).toBe(toNano("1"));
+            expect(dict.depositAmount).toBe(toNano("0"));
 
         })
+
+        it("Makes a double deposit into the same commitment and withdraws", async function () {
+            depositMessageResult = await jetton_sender_jetton_wallet.sendTransfer(
+                jetton_sender.getSender(),
+                toNano("1.5"),
+                depositedAmount,
+                depositWithdraw.address, // Send to
+                jetton_sender.address, //Response address
+                beginCell().endCell(), //CustomPayload
+                forwardAmount, //Must have enough Ton to forward it...
+                depositData
+            );
+
+            let deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+
+            expect(deposit_contract_balance).toBe(depositedAmount);
+
+            expect(depositMessageResult.transactions).toHaveTransaction({
+                from: jetton_sender.address,
+                to: jetton_sender_jetton_wallet.address,
+                success: true
+            });
+
+            //Now I do another deposit, to the same commitment
+            depositMessageResult = await jetton_sender_jetton_wallet.sendTransfer(
+                jetton_sender.getSender(),
+                toNano("1.5"),
+                depositedAmount,
+                depositWithdraw.address, // Send to
+                jetton_sender.address, //Response address
+                beginCell().endCell(), //CustomPayload
+                forwardAmount, //Must have enough Ton to forward it...
+                depositData
+            );
+
+            deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+            // I deposited twice
+            expect(deposit_contract_balance).toBe(depositedAmount * 2n);
+
+            expect(depositMessageResult.transactions).toHaveTransaction({
+                from: jetton_sender.address,
+                to: jetton_sender_jetton_wallet.address,
+                success: true
+            });
+
+            let dict = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+
+            expect(dict.nullifier).toBe(0n);
+            expect(dict.depositAmount).toBe(toNano("2"));
+
+            const recipient_address = not_jetton_sender.address;
+            const [workchain, splitRawAddress] = SplitAddress(recipient_address.toRawString());
+
+
+            const recipient_bigint = hexToBigint(splitRawAddress);
+            const { proof, publicSignals } = await generateNoteWithdrawProof(
+                {
+                    deposit: parsedNote.deposit,
+                    recipient: recipient_bigint,
+                    workchain: parseInt(workchain),
+                    snarkArtifacts: undefined
+                })
+            const curve = await buildBls12381();
+            const proofProc = unstringifyBigInts(proof);
+            const pi_aS = g1Compressed(curve, proofProc.pi_a);
+            const pi_bS = g2Compressed(curve, proofProc.pi_b);
+            const pi_cS = g1Compressed(curve, proofProc.pi_c);
+            const pi_a = Buffer.from(pi_aS, "hex");
+            const pi_b = Buffer.from(pi_bS, "hex");
+            const pi_c = Buffer.from(pi_cS, "hex");
+
+            const verifyResult = await depositWithdraw.sendWithdraw(
+                not_jetton_sender.getSender(),
+                {
+                    pi_a: pi_a,
+                    pi_b: pi_b,
+                    pi_c: pi_c,
+                    pubInputs: publicSignals,
+                    value: toNano("0.15") //0.15 TON fee
+                });
+
+            expect(verifyResult.transactions).toHaveTransaction({
+                from: not_jetton_sender.address,
+                to: depositWithdraw.address,
+                success: true
+            })
+
+            deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+
+            expect(deposit_contract_balance).toBe(toNano("0"));
+
+            const withdrawn_value = await not_jetton_sender_jetton_wallet.getJettonBalance();
+
+            expect(withdrawn_value).toBe(INITIAL_JETTON_BALANCE + toNano("2"));
+
+            dict = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+
+            expect(dict.nullifier).toBe(parsedNote.deposit.nullifierHash);
+            expect(dict.depositAmount).toBe(toNano("0"));
+
+            depositMessageResult = await jetton_sender_jetton_wallet.sendTransfer(
+                jetton_sender.getSender(),
+                toNano("1.5"),
+                depositedAmount,
+                depositWithdraw.address, // Send to
+                jetton_sender.address, //Response address
+                beginCell().endCell(), //CustomPayload
+                forwardAmount, //Must have enough Ton to forward it...
+                depositData
+            );
+
+            deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+            // I deposited twice, the deposit is zero!
+            expect(deposit_contract_balance).toBe(0n);
+
+        })
+
+        it("Makes a withdraw but consolidates utxos instead", async function () {
+            //TODO: Test the UTXO
+
+            //I need to make a deposit
+            depositMessageResult = await jetton_sender_jetton_wallet.sendTransfer(
+                jetton_sender.getSender(),
+                toNano("1.5"),
+                depositedAmount,
+                depositWithdraw.address, // Send to
+                jetton_sender.address, //Response address
+                beginCell().endCell(), //CustomPayload
+                forwardAmount, //Must have enough Ton to forward it...
+                depositData
+            );
+
+            let deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+
+            expect(deposit_contract_balance).toBe(depositedAmount);
+
+            expect(depositMessageResult.transactions).toHaveTransaction({
+                from: jetton_sender.address,
+                to: jetton_sender_jetton_wallet.address,
+                success: true
+            });
+
+
+            //Then I transfer it to a new commitment and an utxo
+
+            //TODO: I need to test transferring to existing one
+
+            //TODO: test for errors            
+
+
+
+        })
+
+
     })
+
+
 
 });
