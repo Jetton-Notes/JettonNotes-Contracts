@@ -71,7 +71,7 @@ export function generateNullifierHash(nullifier) {
 export async function deposit({ currency, amount }) {
     const deposit = await createDeposit({ nullifier: rbigint(), secret: rbigint() });
     const note = toNoteHex(deposit.preimage, 62);
-    const noteString = `note-${currency}-${amount}-${note}`
+    const noteString = `jettonnote-${currency}-${amount}-${note}`
     return noteString;
 }
 
@@ -93,13 +93,13 @@ async function createDeposit({ nullifier, secret }) {
 
 /** BigNumber to hex string of specified length */
 export function toNoteHex(number, length = 32) {
-    const str = number instanceof Buffer ? number.toString('hex') : bigInt(number).toString(16)
+    const str = number instanceof Buffer ? number.toString('hex') : BigInt(number).toString(16)
     return '0x' + str.padStart(length * 2, '0')
 }
 
 
 export async function parseNote(noteString) {
-    const noteRegex = /note-(?<currency>\w+)-(?<amount>[\d.]+)-0x(?<note>[0-9a-fA-F]{124})/g
+    const noteRegex = /jettonnote-(?<currency>\w+)-(?<amount>[\d.]+)-0x(?<note>[0-9a-fA-F]{124})/g
     const match = noteRegex.exec(noteString);
     if (!match) {
         throw new Error("Invalid Note!")
