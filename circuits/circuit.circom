@@ -1,6 +1,7 @@
 pragma circom 2.0.0;
 include "./CommitmentHasher.circom";
 
+
 template Withdraw(){
     signal input nullifierHash;
     signal input commitmentHash;
@@ -8,7 +9,14 @@ template Withdraw(){
    signal input workchain;
 
    signal input recipient;
-   
+
+   signal input transferto_commitment;
+
+   signal input transferto_amount;
+
+   signal input utxo_commitment;
+
+
    signal input nullifier;
    signal input secret;
 
@@ -17,6 +25,12 @@ template Withdraw(){
    signal recipientSquare;
 
    signal workchainSquare;
+
+   signal transferto_commitmentSquare;
+
+   signal transferto_amountSquare;
+
+   signal utxo_commitmentSquare;
 
   // Hashing the commitment and the nullifier
   component commitmentHasher = CommitmentHasher();
@@ -32,6 +46,12 @@ template Withdraw(){
   recipientSquare <== recipient * recipient;
 
   workchainSquare <== workchain * workchain;
+
+  transferto_commitmentSquare <== transferto_commitment * transferto_commitment;
+
+  transferto_amountSquare <== transferto_amount * transferto_amount;
+
+  utxo_commitmentSquare <== utxo_commitment * utxo_commitment;
 }
 
-component main {public [nullifierHash,commitmentHash,recipient, workchain]} = Withdraw();
+component main {public [nullifierHash,commitmentHash,recipient, workchain, transferto_commitment, transferto_amount, utxo_commitment]} = Withdraw();
