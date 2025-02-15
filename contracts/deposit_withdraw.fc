@@ -63,8 +63,36 @@
         slice payload = forwardPayload.begin_parse();
         int commitment = payload~load_uint(256);
       ;;Forward payload should contain a 256 bit integer and the address must be the correct jetton wallet address
-      
-      ifnot (address::is_jetton_wallet_address(sender_address) & commitment != 0){
+         
+        int shouldRefund = 0; ;; One is for dunno, -1 for true, 0 for no
+
+        int existingDeposit = 0;
+
+       ;;Checking if the commitment exists already and if it's nullified      
+       (slice payload, int existsAlready) = storage::deposits_dict.udict_get?(256, commitment);
+
+       if(existsAlready != 0){
+        ;; Found it, but I need to check if it's nullified already
+        (int nullifierHash, int deposit) = unpack::depositData(payload);
+        existingDeposit = deposit;
+
+
+        if(nullifierHash != 0){
+            ;;It's already nullified, I should refund
+            shouldRefund = -1;
+        }
+       }
+
+       ifnot(address::is_jetton_wallet_address(sender_address)){
+        shouldRefund = -1;
+       }
+
+       if(commitment == 0){
+        shouldRefund = -1;
+       }
+
+      ;;Should refund if the sender is not the correct jetton address, the commitment is zero or it should be refunded because it's nullified
+      if (shouldRefund){
         ;;Refund invalid jettons sent here
         send_jettons(
             query_id,
@@ -76,23 +104,39 @@
             mode::carry_remaining_gas,
             0,
             begin_cell().store_uint(0,32).store_slice("Invalid Jettons").end_cell());
+
+            return ();
       }
 
-        
-        ;;Then store the deposit
+         ;;If doesn't exist, yet
+         if(existsAlready == 0){
+
+         ;;Then store the deposit new
           cell packedDepositData = pack::depositData(
             0, ;;Nullified is false
             transferred_jettons
             );
 
-         ;;Save the 
+         ;;Save the new deposit
          (cell newDict, int success)  =  udict_add?(storage::deposits_dict, 256, commitment, packedDepositData.begin_parse());
 
-        ;;Check to make sure the commitment exits,
-        throw_if(exec::deposit_already_exists, success == 0);
+          ;;Check to make sure it was saved...
+          throw_if(exec::deposit_already_exists, success == 0);
 
-         storage::deposits_dict = newDict;
+          storage::deposits_dict = newDict;
 
+         } else {
+          int newDeposit = transferred_jettons + existingDeposit;
+          
+          ;;Add the new deposit to the existing deposit
+           cell packedDepositData = pack::depositData(0, newDeposit);
+
+          cell newDict = storage::deposits_dict.udict_set(256,commitment, packedDepositData.begin_parse());
+
+           storage::deposits_dict = newDict;
+
+         }
+    
         ;; Update the dict
         storage::save_data();
 
@@ -128,11 +172,11 @@
         ;;Nullify the amount
         cell packedDepositData = pack::depositData(
             pubInput0, ;;NullifierHash
-            depositAmount); ;;This deposit amount is nullified now
+            0); ;;This deposit amount is nullified now
 
 
         ;;Upate the dict
-        cell newDict = udict_set(storage::deposits_dict,256,pubInput1,packedDepositData.begin_parse());
+        cell newDict = storage::deposits_dict.udict_set(256,pubInput1,packedDepositData.begin_parse());
 
         storage::deposits_dict = newDict;
     
@@ -157,8 +201,111 @@
         return ();
     };
 
+    if(op == op::utxo_withdraw){
+
+        slice pi_a = in_msg_body~verifier::load_p1();
+        slice pi_b = in_msg_body~verifier::load_p2();
+        slice pi_c = in_msg_body~verifier::load_p1();
+
+        int pubInput0 = in_msg_body~verifier::load_newint(); ;; This is the nullifierHash
+        int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
+        int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
+        int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender
+
+        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, sender_addr_hashpart ); ;;Using the sender's address for the pubInput2
+        
+        throw_if(exec::invalid_proof, verificationResult == 0);
+
+        ;;These extra inputs are needed to  call utxo_withdraw
+        int transferto_commitment = in_msg_body~load_uint(256);
+        int transferto_amount = in_msg_body~load_coins();
+        int utxo_commitment = in_msg_body~load_uint(256);
+        ;;Throw error if transferto_commitment is zero
+        ;;Throw error if transferto_amount is zero
+        ;;Throw error if utxo_commitment is zero
+
+        throw_if(exec::missing_transferto_commitment, transferto_commitment == 0);
+        throw_if(exec::missing_transferto_amount, transferto_amount == 0);
+        throw_if(exec::missing_utxo_commitment, utxo_commitment == 0);
+        
+        ;;Check that the amount to withdraw exists
+        (slice payload,int found) = storage::deposits_dict.udict_get?(256,pubInput1); ;;Get the withdraw data by commitment
+
+        throw_unless(exec::deposit_not_found, found); ;; If the Deposit is not found, throw
+
+        (int nullifierHash, int depositAmount) = unpack::depositData(payload);
+
+        ;; Check if the deposit was withdrawn already, if the nullifierHash is zero then it was not withrawn
+        throw_if(exec::deposit_nullified, nullifierHash != 0);
+        
+        ;;Throw if the amount I want to transfer is bigger than the deposit
+        throw_if(exec::deposit_amount_invalid,transferto_amount > depositAmount);
+
+        ;;The difference is the UTXO
+        int difference = depositAmount - transferto_amount;
+
+        ;;Calculate the amount to transfer, update the dicts with the amounts...
+        (slice transferto_payload, int transferto_found) = storage::deposits_dict.udict_get?(256,transferto_commitment);
+        ;;If the address to transfer to was found, I need to make sure that is not nullified...
+        if(transferto_found){
+
+          (int transferto_nullifierHash, int transferto_depositAmount) = unpack::depositData(transferto_payload);
+           throw_if(exec::transferto_nullified, transferto_nullifierHash != 0);
+
+           int newTransferto_depositAmount = transferto_depositAmount + transferto_amount;
+           
+           cell packedDepositData = pack::depositData(0,newTransferto_depositAmount);
+
+           cell newDict = storage::deposits_dict.udict_set(256, transferto_commitment,packedDepositData.begin_parse());
+
+           storage::deposits_dict = newDict;
+
+        } else {
+          ;;Create a new deposit here for transferto_commitment
+          cell packedDepositData = pack::depositData(0,transferto_amount);
+          (cell newDict, int success) = udict_add?(storage::deposits_dict,256,transferto_commitment,packedDepositData.begin_parse());
+          throw_if(exec::deposit_already_exists, success == 0);
+          storage::deposits_dict = newDict;
+        }
+
+
+        (slice utxo_payload, int utxo_found) = storage::deposits_dict.udict_get?(256, utxo_commitment);
+ 
+        if(utxo_found){
+            (int utxo_nullifierHash, int utxo_depositAmount) = unpack::depositData(utxo_payload);
+            throw_if(exec::utxo_nullified, utxo_nullifierHash != 0);
+            cell packedDepositData = pack::depositData(0,difference);
+            cell newDict = storage::deposits_dict.udict_set(256,utxo_commitment,packedDepositData.begin_parse());
+            storage::deposits_dict = newDict;
+        } else {
+            ;;Else create the utxo deposit
+            cell packedDepositdata = pack::depositData(0,difference);
+            (cell newDict, int success) = udict_add?(storage::deposits_dict,256,utxo_commitment,packedDepositdata.begin_parse());
+            throw_if(exec::deposit_already_exists, success == 0);
+            storage::deposits_dict = newDict;
+
+        }
+
+        ;;Nullify the original utxo amount
+        cell packedDepositData = pack::depositData(
+            pubInput0, ;;NullifierHash
+            0); ;;This deposit amount is nullified now
+
+
+        ;;Upate the dict
+         cell newDict = storage::deposits_dict.udict_set(256,pubInput1,packedDepositData.begin_parse());
+
+         storage::deposits_dict = newDict;
+    
+        storage::save_data();
+
+    } 
+
     throw(0xffff); ;; if the message contains an op that is not known to this contract, we throw
 }
+
+;;TODO: Implement a setter for withdraw fees and the fees ofc for the relayer
+;;TODO: add the new zkp circuit
 
 ;; Checks if there is a deposit at commitment and returns the slice stored at that index in the dict
 ;; The slice contains the deposit amount and if it's been nullified or not
