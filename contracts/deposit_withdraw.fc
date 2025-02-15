@@ -153,10 +153,18 @@
         int pubInput0 = in_msg_body~verifier::load_newint(); ;; This is the nullifierHash
         int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
         ;;Unused public inputs which are instead taken from the senders address
-        ;;int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
-        ;;int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender
+        int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
+        int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender
+        int pubInput4 = in_msg_body~verifier::load_newint(); ;; Transfer to commitment      
+        int pubInput5 = in_msg_body~verifier::load_newint(); ;; Transfer to amount
+        int pubInput6 = in_msg_body~verifier::load_newint(); ;; Utxo commitment
+        
+        ;;Withdraw proofs can't have utxo...
+        throw_if(exec::invalid_transfer_to, pubInput4);
+        throw_if(exec::invalid_transfer_amount, pubInput5);
+        throw_if(exec::invalid_utxo_commitment, pubInput6);
 
-        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, sender_addr_hashpart ); ;;Using the sender's address for the pubInput2
+        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, sender_addr_hashpart,pubInput4, pubInput5, pubInput6 ); ;;Using the sender's address for the pubInput2
         
         throw_if(exec::invalid_proof, verificationResult == 0);
 
@@ -181,7 +189,6 @@
         storage::deposits_dict = newDict;
     
         storage::save_data();
-
 
         ;;Send message to withdraw jetton token
         send_jettons(
@@ -211,15 +218,20 @@
         int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
         int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
         int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender
+        int pubInput4 = in_msg_body~verifier::load_newint(); ;; Transfer to commitment      
+        int pubInput5 = in_msg_body~verifier::load_newint(); ;; Transfer to amount
+        int pubInput6 = in_msg_body~verifier::load_newint(); ;; Utxo commitment
 
-        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, sender_addr_hashpart ); ;;Using the sender's address for the pubInput2
+        ;;TODO: I need to assert the workchain and address are zero! I don't need those here!
+
+        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, sender_addr_hashpart,pubInput4,pubInput5,pubInput6 ); ;;Using the sender's address for the pubInput2
         
         throw_if(exec::invalid_proof, verificationResult == 0);
 
         ;;These extra inputs are needed to  call utxo_withdraw
-        int transferto_commitment = in_msg_body~load_uint(256);
-        int transferto_amount = in_msg_body~load_coins();
-        int utxo_commitment = in_msg_body~load_uint(256);
+        int transferto_commitment = pubInput4;
+        int transferto_amount = pubInput5;
+        int utxo_commitment = pubInput6;
         ;;Throw error if transferto_commitment is zero
         ;;Throw error if transferto_amount is zero
         ;;Throw error if utxo_commitment is zero
@@ -305,7 +317,6 @@
 }
 
 ;;TODO: Implement a setter for withdraw fees and the fees ofc for the relayer
-;;TODO: add the new zkp circuit
 
 ;; Checks if there is a deposit at commitment and returns the slice stored at that index in the dict
 ;; The slice contains the deposit amount and if it's been nullified or not

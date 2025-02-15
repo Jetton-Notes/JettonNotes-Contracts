@@ -4,17 +4,20 @@ const op::verify = "op::verify"c;
 const int P1_SIZE = 48 * 8;
 const int P2_SIZE = 96 * 8;
 
-
-const slice IC0 = "a3470234e8113bcad997b7e9c0c7ac9b851c351ec9411f45d220652ab96e35a560bcf8a5b168c6c560c2213a012bc629"s;
-const slice IC1 = "b836801fb933d6502b439dc10e0897a1174df0715d61a7bf7ee048872acac01536fabbc0a9d879759fef82147f809656"s;
-const slice IC2 = "8323998ff3c5d0c0218945a4c3fd6626159624f1e01f5290a720c77fd5e4fe3ca621bd6201a81b6ec49c25ecd08f1bbc"s;
-const slice IC3 = "816b4fe83088c6ded0673354c3d393311cba8a2661d32928eded2304ddbe048795b4af4fe45ed74d91b5536bd91bc22f"s;
-const slice IC4 = "ae57e338f08ed7ce19a05339e4894016ed743bd77916bd2160b19b39a77398c3e21ec68288c2f13a0f1778862a2959ea"s;
+const slice IC0 = "96258bc2e0e0087c9e84c8217b91cf528805982db3c5611b3495787ad0463c0f4e211256501f73f9645710ef9dfec5d6"s;
+const slice IC1 = "b5dfc77bd022ef9937d61ce6455f8f47562b5400354451c8b04839188f786e77562faea6e2d7f262aaa3ea8c8868611b"s;
+const slice IC2 = "9177159f4f85c5ebbd4a2ec9dea0581eb10c44032fe3885d1be7f4907dbb364935db7a9057ad20c7133bbd2a1529aef2"s;
+const slice IC3 = "944a99b0ef727a3e01524de8512124df716b9d9d38681a1a414733235ea9c9f8545e12b4d00e0f7e0c2ccbda1c75dfb4"s;
+const slice IC4 = "b2c306ddcb88e69ae863f2a139eb834953c06ad1b150df4378fda5550331466f1bc4c17e2e496afc0c65b90f1f7559e0"s;
+const slice IC5 = "b8b521d235f0b60c5543046a133835a54b3cdd8c431b788b19898bb49cabe5c589b1f68e385548daa0ea3d35fbb01db0"s;
+const slice IC6 = "a94f8c3b68e489e24fae68ab8828302c3a100fd14c47f3eca6d252bd7bb07d9c5102a96796b193b63a679c4e61a334a7"s;
+const slice IC7 = "b68243868b0086a6eeb8e27fbd9bdaa82cdbfe08fdfbe208a940f67378148ad2748ceb514d89df08262af90e983edcf9"s;
 
 const slice vk_gamma_2 = "93e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8"s;
-const slice vk_delta_2 = "a8eb9afcbb05890d6301259156754e161d9a455fdd17725181bf5deca9e55d82e2ae77d3d54947b1dd2194be5ced5fc3193c2c3592d4a26ddc9058faabb047a1639c1249e2482a1bdd7ff92e0ac248d358afc2a561c552484c320537c1943032"s;
+const slice vk_delta_2 = "86d78db1fe280eaba075a81af774e397f62eda259110d3b62d67914c8a7d33296c7cb6bcb585925855efdf338277adcd03d9d0ae35f8a4db34f9031457ee139dff6f8fff9f95a3f0f8e5af14ea316f5854947dd2da747f20bef045b9f911a4b8"s;
 const slice vk_alpha_1 = "a3e3e312fd1ad9bb89947b418011dbc2c469544073e3247490aeab56c3cfff753e9e8c6624c5947f11f866c9c8172b21"s;
 const slice vk_beta_2 = "b643de0696778928888e5c43df458a0b580d5c8b17ea66031cb0477887c2572bc0494921d724eb428bde535c457d4eb40abd8a56caf186d6a1bda48b146552937c6c1d5a6f8ffb37f7a91167256dd9f86952fc8b3b714bb1aff879fbc147d121"s;
+
 
 slice bls_g1_add(slice x, slice y) asm "BLS_G1_ADD";
 slice bls_g1_neg(slice x) asm "BLS_G1_NEG";
@@ -25,8 +28,14 @@ slice bls_g1_multiexp(
     slice x2, int y2,
     
     slice x3, int y3,
-
+    
     slice x4, int y4,
+    
+    slice x5, int y5,
+    
+    slice x6, int y6,
+    
+    slice x7, int y7,
     
     int n
 ) asm "BLS_G1_MULTIEXP";
@@ -60,14 +69,20 @@ int bls_pairing(slice x1, slice y1, slice x2, slice y2, slice x3, slice y3, slic
     slice pi_a,
     slice pi_b,
     slice pi_c,
-    
+   
     int pubInput0 ,
     
     int pubInput1 ,
     
     int pubInput2 ,
-
-    int pubInput3 
+    
+    int pubInput3 ,
+    
+    int pubInput4 ,
+    
+    int pubInput5 ,
+    
+    int pubInput6 
     
 ) impure {
 
@@ -81,7 +96,12 @@ int bls_pairing(slice x1, slice y1, slice x2, slice y2, slice x3, slice y3, slic
 
         IC4, pubInput3,
         
-        4
+        IC5, pubInput4,
+        
+        IC6, pubInput5,
+        
+        IC7, pubInput6,
+        7
     );
 
 

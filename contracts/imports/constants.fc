@@ -12,6 +12,10 @@ const int exec::missing_utxo_commitment = 56;
 const int exec::transferto_nullified = 57;
 const int exec::utxo_nullified = 58;
 const int exec::deposit_amount_invalid = 59;
+const int exec::invalid_transfer_to = 60;
+const int exec::invalid_transfer_amount = 61;
+const int exec::invalid_utxo_commitment = 62;
+
 {- OP-CODES FOR MAIN CONTRACT-}
 
 ;;TODO: op::deposit will be deprecated to use transfer_notification instead

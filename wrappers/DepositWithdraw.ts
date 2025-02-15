@@ -29,6 +29,7 @@ export function depositJettonsForwardPayload(config: DepositForwardPayload) {
 export const Opcodes = {
     // deposit: 0x3b3ca17,
     withdraw: 0x4b4ccb18,
+    utxo_withdraw:0x5b5ccb29
 };
 
 export class DepositWithdraw implements Contract {
@@ -51,28 +52,6 @@ export class DepositWithdraw implements Contract {
             body: beginCell().endCell(),
         });
     }
-
-    //TODO: This is for testning purposes now, it will just encode depositData
-    // async sendDeposit(provider: ContractProvider, via: Sender, opts: {
-    //     value: bigint,
-    //     queryID?: number,
-    //     commitment: bigint,
-    //     depositAmount: bigint
-    // }) {
-    //     await provider.internal(via, {
-    //         value: opts.value,
-    //         sendMode: SendMode.PAY_GAS_SEPARATELY,
-    //         body: beginCell()
-    //             .storeUint(Opcodes.deposit, 32)
-    //             .storeUint(opts.queryID ?? 0, 64)
-    //             .storeRef(
-    //                 beginCell()
-    //                     .storeUint(opts.commitment, 256)
-    //                     .storeCoins(opts.depositAmount)
-    //             ).endCell()
-    //     })
-
-    // }
 
     async sendWithdraw(
         provider: ContractProvider,
@@ -108,45 +87,45 @@ export class DepositWithdraw implements Contract {
                         )
                 ).endCell()
         })
-
     }
 
-    // async sendVerify(
-    //     provider: ContractProvider,
-    //     via: Sender,
-    // opts: {
-    //     pi_a: Buffer;
-    //     pi_b: Buffer;
-    //     pi_c: Buffer;
-    //     pubInputs: bigint[];
-    //     value: bigint;
-    //     queryID?: number;
-    // }
-    // ) {
-    //     await provider.internal(via, {
-    //         value: opts.value,
-    //         sendMode: SendMode.PAY_GAS_SEPARATELY,
-    //         body: beginCell()
-    //             .storeUint(Opcodes.verify, 32)
-    //             .storeUint(opts.queryID ?? 0, 64)
-    //             .storeRef(
-    //                 beginCell()
-    //                     .storeBuffer(opts.pi_a)
-    //                     .storeRef(
-    //                         beginCell()
-    //                             .storeBuffer(opts.pi_b)
-    //                             .storeRef(
-    //                                 beginCell()
-    //                                     .storeBuffer(opts.pi_c)
-    //                                     .storeRef(
-    //                                         this.cellFromInputList(opts.pubInputs)
-    //                                     )
-    //                             )
-    //                     )
-    //             )
-    //             .endCell(),
-    //     });
-    // }
+
+    async sendUtxo_Withdraw(
+        provider: ContractProvider,
+        via: Sender,
+    opts: {
+        pi_a: Buffer;
+        pi_b: Buffer;
+        pi_c: Buffer;
+        pubInputs: bigint[];
+        value: bigint;
+        queryID?: number;
+    }
+    ) {
+        await provider.internal(via, {
+            value: opts.value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell()
+                .storeUint(Opcodes.utxo_withdraw, 32)
+                .storeUint(opts.queryID ?? 0, 64)
+                .storeRef(
+                    beginCell()
+                        .storeBuffer(opts.pi_a)
+                        .storeRef(
+                            beginCell()
+                                .storeBuffer(opts.pi_b)
+                                .storeRef(
+                                    beginCell()
+                                        .storeBuffer(opts.pi_c)
+                                        .storeRef(
+                                            this.cellFromInputList(opts.pubInputs)
+                                        )
+                                )
+                        )
+                )
+                .endCell(),
+        });
+    }
 
     cellFromInputList(list: bigint[]): Cell {
         var builder = beginCell();
@@ -158,41 +137,6 @@ export class DepositWithdraw implements Contract {
         }
         return builder.endCell()
     }
-
-    // async sendIncrease(
-    //     provider: ContractProvider,
-    //     via: Sender,
-    //     opts: {
-    //         increaseBy: number;
-    //         value: bigint;
-    //         queryID?: number;
-    //     }
-    // ) {
-    //     await provider.internal(via, {
-    //         value: opts.value,
-    //         sendMode: SendMode.PAY_GAS_SEPARATELY,
-    //         body: beginCell()
-    //             .storeUint(Opcodes.increase, 32)
-    //             .storeUint(opts.queryID ?? 0, 64)
-    //             .storeUint(opts.increaseBy, 32)
-    //             .endCell(),
-    //     });
-    // }
-
-    // async getCounter(provider: ContractProvider) {
-    //     const result = await provider.get('get_counter', []);
-    //     return result.stack.readNumber();
-    // }
-
-    // async getID(provider: ContractProvider) {
-    //     const result = await provider.get('get_id', []);
-    //     return result.stack.readNumber();
-    // }
-
-    // async getRes(provider: ContractProvider) {
-    //     const result = await provider.get('get_res', []);
-    //     return result.stack.readNumber();
-    // }
 
     async getDeposit(provider: ContractProvider, commitmentHash: bigint) {
         const result = await provider.get("get_deposit", [{ type: "int", value: commitmentHash }])

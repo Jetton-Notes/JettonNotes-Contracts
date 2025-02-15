@@ -214,6 +214,9 @@ describe('DepositWithdraw', () => {
                     deposit: parsedNote.deposit,
                     recipient: recipient_bigint,
                     workchain: parseInt(workchain),
+                    transferto_commitment: 0n,
+                    transferto_amount: 0n,
+                    utxo_commitment: 0n,
                     snarkArtifacts: undefined
                 })
             const curve = await buildBls12381();
@@ -315,6 +318,9 @@ describe('DepositWithdraw', () => {
                     deposit: parsedNote.deposit,
                     recipient: recipient_bigint,
                     workchain: parseInt(workchain),
+                    transferto_commitment: 0n,
+                    transferto_amount: 0n,
+                    utxo_commitment: 0n,
                     snarkArtifacts: undefined
                 })
             const curve = await buildBls12381();

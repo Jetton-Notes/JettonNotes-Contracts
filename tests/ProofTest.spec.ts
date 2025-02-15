@@ -1,5 +1,5 @@
 
-import { deposit, generateNoteWithdrawProof, hexToBigint, parseNote, SplitAddress, verifyFourPublicSignals } from "../lib/cryptonotes";
+import { deposit, generateNoteWithdrawProof, hexToBigint, parseNote, SplitAddress, verifyPublicSignals } from "../lib/cryptonotes";
 import fs from "fs";
 import assert from "assert";
 import { Address } from "@ton/core";
@@ -17,10 +17,19 @@ describe("Proof test", () => {
 
         const recipient_bigint = hexToBigint(splitRawAddress);
 
-        const { proof, publicSignals } = await generateNoteWithdrawProof({ deposit: parsedNote.deposit, recipient: recipient_bigint, workchain: parseInt(workchain), snarkArtifacts: undefined })
+        const { proof, publicSignals } = await generateNoteWithdrawProof(
+            {
+                deposit: parsedNote.deposit,
+                recipient: recipient_bigint,
+                workchain: parseInt(workchain),
+                transferto_amount: 0n,
+                transferto_commitment: 0n,
+                utxo_commitment: 0n,
+                snarkArtifacts: undefined
+            })
         const verificationKeyFile = fs.readFileSync("circuits/verification_key.json", "utf-8");
         const verificationKey = JSON.parse(verificationKeyFile);
-        const res = await verifyFourPublicSignals(verificationKey, { proof, publicSignals });
+        const res = await verifyPublicSignals(verificationKey, { proof, publicSignals });
         assert.equal(res, true);
 
     })

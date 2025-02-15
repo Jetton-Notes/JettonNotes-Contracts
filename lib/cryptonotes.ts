@@ -10,12 +10,21 @@ export function rbigint(): bigint { return utils.leBuff2int(crypto.randomBytes(3
 
 
 // Generates the proofs for verification! 
-export async function generateNoteWithdrawProof({ deposit, recipient, workchain, snarkArtifacts }) {
+export async function generateNoteWithdrawProof({
+    deposit,
+    recipient,
+    workchain,
+    transferto_commitment,
+    transferto_amount,
+    utxo_commitment, snarkArtifacts }) {
     const input = {
         nullifierHash: deposit.nullifierHash,
         commitmentHash: deposit.commitment,
         recipient,
         workchain,
+        transferto_commitment,
+        transferto_amount,
+        utxo_commitment,
         // private snark inputs
         nullifier: deposit.nullifier,
         secret: deposit.secret
@@ -44,14 +53,17 @@ export async function generateNoteWithdrawProof({ deposit, recipient, workchain,
  * @returns True if the proof is valid, false otherwise.
  */
 
-export function verifyFourPublicSignals(verificationKey, { proof, publicSignals }) {
+export function verifyPublicSignals(verificationKey, { proof, publicSignals }) {
     return groth16.verify(
         verificationKey,
         [
             publicSignals[0],
             publicSignals[1],
             publicSignals[2],
-            publicSignals[3]
+            publicSignals[3],
+            publicSignals[4],
+            publicSignals[5],
+            publicSignals[6],
 
         ],
         proof
