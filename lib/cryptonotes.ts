@@ -80,10 +80,10 @@ export function generateNullifierHash(nullifier) {
     return poseidon1([BigInt(nullifier)])
 }
 
-export async function deposit({ currency, amount }) {
+export async function deposit({ currency }) {
     const deposit = await createDeposit({ nullifier: rbigint(), secret: rbigint() });
     const note = toNoteHex(deposit.preimage, 62);
-    const noteString = `jettonnote-${currency}-${amount}-${note}`
+    const noteString = `jettonnote-${currency}-${note}`
     return noteString;
 }
 
@@ -111,7 +111,7 @@ export function toNoteHex(number, length = 32) {
 
 
 export async function parseNote(noteString) {
-    const noteRegex = /jettonnote-(?<currency>\w+)-(?<amount>[\d.]+)-0x(?<note>[0-9a-fA-F]{124})/g
+    const noteRegex = /jettonnote-(?<currency>\w+)-0x(?<note>[0-9a-fA-F]{124})/g
     const match = noteRegex.exec(noteString);
     if (!match) {
         throw new Error("Invalid Note!")
@@ -122,9 +122,7 @@ export async function parseNote(noteString) {
     const secret = utils.leBuff2int(buf.slice(31, 62));
     const deposit = await createDeposit({ nullifier, secret });
     //@ts-ignore
-    const netId = Number(match.groups.netId);
-    //@ts-ignore
-    return { currency: match.groups.currency, amount: match.groups.amount, netId, deposit }
+    return { currency: match.groups.currency,deposit }
 }
 
 
