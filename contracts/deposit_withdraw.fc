@@ -160,9 +160,9 @@
         int pubInput6 = in_msg_body~verifier::load_newint(); ;; Utxo commitment
         
         ;;Withdraw proofs can't have utxo...
-        throw_if(exec::invalid_transfer_to, pubInput4);
-        throw_if(exec::invalid_transfer_amount, pubInput5);
-        throw_if(exec::invalid_utxo_commitment, pubInput6);
+        throw_if(exec::invalid_transfer_to, pubInput4 != 0);
+        throw_if(exec::invalid_transfer_amount, pubInput5 != 0);
+        throw_if(exec::invalid_utxo_commitment, pubInput6 != 0);
 
         int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, sender_addr_hashpart,pubInput4, pubInput5, pubInput6 ); ;;Using the sender's address for the pubInput2
         
@@ -222,9 +222,7 @@
         int pubInput5 = in_msg_body~verifier::load_newint(); ;; Transfer to amount
         int pubInput6 = in_msg_body~verifier::load_newint(); ;; Utxo commitment
 
-        ;;TODO: I need to assert the workchain and address are zero! I don't need those here!
-
-        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, sender_addr_hashpart,pubInput4,pubInput5,pubInput6 ); ;;Using the sender's address for the pubInput2
+        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,pubInput2, pubInput3,pubInput4,pubInput5,pubInput6 );
         
         throw_if(exec::invalid_proof, verificationResult == 0);
 
@@ -253,9 +251,30 @@
         ;;Throw if the amount I want to transfer is bigger than the deposit
         throw_if(exec::deposit_amount_invalid,transferto_amount > depositAmount);
 
-        ;;The difference is the UTXO
-        int difference = depositAmount - transferto_amount;
+ 
+        int difference = -10;
+        int fee_reduced_deposit = depositAmount;
+        if(address::is_relayer_address(sender_address)){
+           fee_reduced_deposit = depositAmount - storage::exact_fee_amount;
+           ;; Transfer out the fee now
+           send_jettons(
+            query_id,
+            storage::exact_fee_amount,
+            storage::relayer_address,
+            storage::relayer_address,
+            storage::jetton_wallet_address,
+            0,
+            mode::carry_remaining_gas,
+            0,
+            begin_cell().store_uint(0,32).store_slice("Relayer fee payment").end_cell());
+        }
 
+        ;;The difference is the UTXO and it's just the deposit minus transfer_to
+         difference = fee_reduced_deposit - transferto_amount;
+        
+        ;;The difference can't be a negative number
+        throw_if(exec::invalid_transfer_amount, difference < 0);
+        
         ;;Calculate the amount to transfer, update the dicts with the amounts...
         (slice transferto_payload, int transferto_found) = storage::deposits_dict.udict_get?(256,transferto_commitment);
         ;;If the address to transfer to was found, I need to make sure that is not nullified...
@@ -298,7 +317,7 @@
 
         }
 
-        ;;Nullify the original utxo amount
+        ;;Nullify the original amount
         cell packedDepositData = pack::depositData(
             pubInput0, ;;NullifierHash
             0); ;;This deposit amount is nullified now
@@ -310,13 +329,27 @@
          storage::deposits_dict = newDict;
     
         storage::save_data();
+        return();
+    }
+    
+    ;;An extra function to set the fee, the fee is only taken on relayed transactions submitted by the fee recepient (relayer)
+    if(op == op::set_fee_data){
+        ;;Only fee recepient address can call this function, it's to update the fee and to update the fee recepient address
+        throw_unless(exc::incorrect_sender, address::is_relayer_address(sender_address));
+        
+        slice new_relayer_address = in_msg_body~load_msg_addr();
+        int new_fee = in_msg_body~load_coins();
+        storage::relayer_address = new_relayer_address;
+        storage::exact_fee_amount = new_fee;
+        
+        storage::save_data();
 
-    } 
+        return ();
+    }
+     
 
     throw(0xffff); ;; if the message contains an op that is not known to this contract, we throw
 }
-
-;;TODO: Implement a setter for withdraw fees and the fees ofc for the relayer
 
 ;; Checks if there is a deposit at commitment and returns the slice stored at that index in the dict
 ;; The slice contains the deposit amount and if it's been nullified or not
@@ -328,4 +361,9 @@
     throw_unless(exec::deposit_not_found,success);
 
     return unpack::depositData(payload);
+}
+
+(slice, int) get_relayer_data() method_id {
+    storage::load_data();
+    return (storage::relayer_address, storage::exact_fee_amount);
 }

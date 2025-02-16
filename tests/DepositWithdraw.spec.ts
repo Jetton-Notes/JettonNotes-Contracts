@@ -41,14 +41,19 @@ describe('DepositWithdraw', () => {
     let jetton_sender_jetton_wallet: SandboxContract<JettonWallet>;
     let not_jetton_sender_jetton_wallet: SandboxContract<JettonWallet>;
     let jetton_receiver_jetton_wallet: SandboxContract<JettonWallet>;
+    let deployer_jetton_wallet: SandboxContract<JettonWallet>;
+    let new_relayer_jetton_wallet: SandboxContract<JettonWallet>;
 
     let deployer: SandboxContract<TreasuryContract>;
+    let newRelayer: SandboxContract<TreasuryContract>;
+
     let depositWithdraw: SandboxContract<DepositWithdraw>;
 
     let depositWithdraw_Deploy: SendMessageResult;
 
     let deposit_contract_jetton_wallet: SandboxContract<JettonWallet>;
 
+    const fee_amount = toNano("0.000001");
 
     beforeAll(async () => {
         contract_code = await compile('DepositWithdraw');
@@ -62,6 +67,7 @@ describe('DepositWithdraw', () => {
         blockchain.now = BLOCKCHAIN_START_TIME;
 
         deployer = await blockchain.treasury('deployer');
+        newRelayer = await blockchain.treasury("new_relayer");
         jetton_sender = await blockchain.treasury("jetton_sender");
         not_jetton_sender = await blockchain.treasury("not_jetton_sender");
         jetton_receiver = await blockchain.treasury("jetton_receiver");
@@ -77,6 +83,10 @@ describe('DepositWithdraw', () => {
         jetton_sender_jetton_wallet = await jettonUserWallet(jetton_sender.address);
         not_jetton_sender_jetton_wallet = await jettonUserWallet(not_jetton_sender.address);
         jetton_receiver_jetton_wallet = await jettonUserWallet(jetton_receiver.address);
+
+        deployer_jetton_wallet = await jettonUserWallet(deployer.address);
+
+        new_relayer_jetton_wallet = await jettonUserWallet(newRelayer.address);
 
         await jettonMinter.sendMint(
             jetton_sender.getSender(),
@@ -119,7 +129,9 @@ describe('DepositWithdraw', () => {
                     init: 0,
                     jetton_wallet_address: jettonMinter.address,//Jetton minter address,
                     jetton_wallet_set: 0,
-                    creator_address: deployer.address
+                    creator_address: deployer.address,
+                    relayer_address: deployer.address,
+                    exact_fee_amount: fee_amount
                 },
                 contract_code
             )
@@ -161,7 +173,7 @@ describe('DepositWithdraw', () => {
         beforeAll(async () => {
             depositedAmount = toNano("1");
             forwardAmount = toNano("1");
-            noteString = await deposit({ currency: "tbtc", amount: 1 });
+            noteString = await deposit({ currency: "tbtc" });
             parsedNote = await parseNote(noteString);
             depositData = depositJettonsForwardPayload({ commitment: parsedNote.deposit.commitment })
         })
@@ -234,7 +246,7 @@ describe('DepositWithdraw', () => {
                     pi_a: pi_a,
                     pi_b: pi_b,
                     pi_c: pi_c,
-                    pubInputs: publicSignals,
+                    pubInputs: publicSignals, //TODO: try to replace pub input 3 to use a full fledged address not the one spit out by public signals... If I can't use that to withdraw to, then I add another slice for that address and then do a comparison in the smart contract...
                     value: toNano("0.15") //0.15 TON fee
                 });
 
@@ -378,8 +390,224 @@ describe('DepositWithdraw', () => {
 
         })
 
-        it("Makes a withdraw but consolidates utxos instead", async function () {
-            //TODO: Test the UTXO
+        it("Makes a withdraw but uses utxos instead", async function () {
+            //I need to make a deposit
+            depositMessageResult = await jetton_sender_jetton_wallet.sendTransfer(
+                jetton_sender.getSender(),
+                toNano("1.5"),
+                depositedAmount,
+                depositWithdraw.address, // Send to
+                jetton_sender.address, //Response address
+                beginCell().endCell(), //CustomPayload
+                forwardAmount, //Must have enough Ton to forward it...
+                depositData
+            );
+
+            let deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+
+            expect(deposit_contract_balance).toBe(depositedAmount);
+
+            expect(depositMessageResult.transactions).toHaveTransaction({
+                from: jetton_sender.address,
+                to: jetton_sender_jetton_wallet.address,
+                success: true
+            });
+
+
+            let noteString2 = await deposit({ currency: "tgBTC" });
+            let parsedNote2 = await parseNote(noteString2);
+            let noteString3 = await deposit({ currency: "tgBTC" });
+            let parsedNote3 = await parseNote(noteString3);
+
+            //now do an utxo withdraw to the address of parsedNote2 and send the remainder to parsedNote3
+            const recipient_address = not_jetton_sender.address;
+            const [workchain, splitRawAddress] = SplitAddress(recipient_address.toRawString());
+
+
+            const recipient_bigint = hexToBigint(splitRawAddress);
+
+            //I want to transfer half of the deposit, the other half goes to the UTXO
+            const transferred_amount = depositedAmount / 2n;
+
+            const { proof, publicSignals } = await generateNoteWithdrawProof(
+                {
+                    deposit: parsedNote.deposit,
+                    recipient: recipient_bigint,
+                    workchain: parseInt(workchain),
+                    transferto_commitment: parsedNote2.deposit.commitment,
+                    transferto_amount: transferred_amount,
+                    utxo_commitment: parsedNote3.deposit.commitment,
+                    snarkArtifacts: undefined
+                })
+            const curve = await buildBls12381();
+            const proofProc = unstringifyBigInts(proof);
+            const pi_aS = g1Compressed(curve, proofProc.pi_a);
+            const pi_bS = g2Compressed(curve, proofProc.pi_b);
+            const pi_cS = g1Compressed(curve, proofProc.pi_c);
+            const pi_a = Buffer.from(pi_aS, "hex");
+            const pi_b = Buffer.from(pi_bS, "hex");
+            const pi_c = Buffer.from(pi_cS, "hex");
+
+
+            const utxo_transfer_res = await depositWithdraw.sendUtxo_Withdraw(
+                not_jetton_sender.getSender(),
+                {
+                    pi_a: pi_a,
+                    pi_b: pi_b,
+                    pi_c: pi_c,
+                    pubInputs: publicSignals,
+                    value: toNano("0.15")
+                }
+            );
+
+            expect(utxo_transfer_res.transactions).toHaveTransaction({
+                from: not_jetton_sender.address,
+                to: depositWithdraw.address,
+                success: true
+            })
+
+            //Now I expect the deposits to move to new commitments
+
+            const transferto_commitment_deposit = await depositWithdraw.getDeposit(parsedNote2.deposit.commitment);
+            expect(transferto_commitment_deposit.nullifier).toBe(0n);
+            expect(transferto_commitment_deposit.depositAmount).toBe(depositedAmount / 2n);
+
+            const utxo_commitment_deposit = await depositWithdraw.getDeposit(parsedNote3.deposit.commitment);
+            expect(utxo_commitment_deposit.nullifier).toBe(0n);
+            expect(utxo_commitment_deposit.depositAmount).toBe(depositedAmount / 2n);
+
+            //The old deposit is nullified
+            const original_deposit = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+            expect(original_deposit.nullifier).toBe(parsedNote.deposit.nullifierHash);
+        })
+
+
+        it("Makes a UTXO transfer using the relayer and takes a fee, changes the fee", async function () {
+            //I need to make a deposit
+            depositMessageResult = await jetton_sender_jetton_wallet.sendTransfer(
+                jetton_sender.getSender(),
+                toNano("1.5"),
+                depositedAmount,
+                depositWithdraw.address, // Send to
+                jetton_sender.address, //Response address
+                beginCell().endCell(), //CustomPayload
+                forwardAmount, //Must have enough Ton to forward it...
+                depositData
+            );
+
+            let deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+
+            expect(deposit_contract_balance).toBe(depositedAmount);
+
+            expect(depositMessageResult.transactions).toHaveTransaction({
+                from: jetton_sender.address,
+                to: jetton_sender_jetton_wallet.address,
+                success: true
+            });
+
+
+            let noteString2 = await deposit({ currency: "tgBTC" });
+            let parsedNote2 = await parseNote(noteString2);
+            let noteString3 = await deposit({ currency: "tgBTC" });
+            let parsedNote3 = await parseNote(noteString3);
+
+            //now do an utxo withdraw to the address of parsedNote2 and send the remainder to parsedNote3
+            const recipient_address = not_jetton_sender.address;
+            const [workchain, splitRawAddress] = SplitAddress(recipient_address.toRawString());
+
+
+            const recipient_bigint = hexToBigint(splitRawAddress);
+
+            //I want to transfer half of the deposit, the other half goes to the UTXO
+            const transferred_amount = depositedAmount / 2n;
+
+            const { proof, publicSignals } = await generateNoteWithdrawProof(
+                {
+                    deposit: parsedNote.deposit,
+                    recipient: recipient_bigint,
+                    workchain: parseInt(workchain),
+                    transferto_commitment: parsedNote2.deposit.commitment,
+                    transferto_amount: transferred_amount,
+                    utxo_commitment: parsedNote3.deposit.commitment,
+                    snarkArtifacts: undefined
+                })
+            const curve = await buildBls12381();
+            const proofProc = unstringifyBigInts(proof);
+            const pi_aS = g1Compressed(curve, proofProc.pi_a);
+            const pi_bS = g2Compressed(curve, proofProc.pi_b);
+            const pi_cS = g1Compressed(curve, proofProc.pi_c);
+            const pi_a = Buffer.from(pi_aS, "hex");
+            const pi_b = Buffer.from(pi_bS, "hex");
+            const pi_c = Buffer.from(pi_cS, "hex");
+
+
+            const utxo_transfer_res = await depositWithdraw.sendUtxo_Withdraw(
+                deployer.getSender(), //The deployer is the relayer!
+                {
+                    pi_a: pi_a,
+                    pi_b: pi_b,
+                    pi_c: pi_c,
+                    pubInputs: publicSignals,
+                    value: toNano("0.15")
+                }
+            );
+
+            expect(utxo_transfer_res.transactions).toHaveTransaction({
+                from: deployer.address,
+                to: depositWithdraw.address,
+                success: true
+            })
+
+            //Now I expect the deposits to move to new commitments
+
+            const transferto_commitment_deposit = await depositWithdraw.getDeposit(parsedNote2.deposit.commitment);
+            expect(transferto_commitment_deposit.nullifier).toBe(0n);
+            expect(transferto_commitment_deposit.depositAmount).toBe(depositedAmount / 2n);
+
+            const utxo_commitment_deposit = await depositWithdraw.getDeposit(parsedNote3.deposit.commitment);
+            expect(utxo_commitment_deposit.nullifier).toBe(0n);
+            expect(utxo_commitment_deposit.depositAmount).toBe(toNano("0.499999"));
+
+            //The old deposit is nullified
+            const original_deposit = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+            expect(original_deposit.nullifier).toBe(parsedNote.deposit.nullifierHash);
+
+            const relayerData = await depositWithdraw.getRelayerData();
+
+            expect(relayerData.relayer_address.toRawString()).toBe(deployer.address.toRawString());
+            expect(relayerData.exact_fee_amount).toBe(fee_amount)
+
+
+            //I expect the balance of the deployer address to increase
+            deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+
+            expect(deposit_contract_balance).toBe(depositedAmount - fee_amount);
+
+            let relayer_jetton_balance = await deployer_jetton_wallet.getJettonBalance();
+
+            expect(relayer_jetton_balance).toBe(fee_amount);
+
+        })
+
+        it("Changes the Fee and the relayer address, Makes a UTXO transfer,checks relayer balance", async function () {
+            const newRelayerFee = toNano("0.00002");
+            const set_fee_data_result = await depositWithdraw.sendSet_fee_data(
+                deployer.getSender(),
+                {
+                    relayer_address: newRelayer.address,
+                    new_fee: newRelayerFee,
+                    value: toNano("0.15")
+                }
+            );
+
+            expect(set_fee_data_result.transactions).toHaveTransaction({
+                from: deployer.address,
+                to: depositWithdraw.address,
+                success: true
+            })
+
+            //TODO: THIS SHOULD THROW BECAUSE THE FEES ARE DIFFERENT AND THERE SHOULD BE A DIFFERENT FEE WITHDRAWN
+
 
             //I need to make a deposit
             depositMessageResult = await jetton_sender_jetton_wallet.sendTransfer(
@@ -404,19 +632,89 @@ describe('DepositWithdraw', () => {
             });
 
 
-            //Then I transfer it to a new commitment and an utxo
+            let noteString2 = await deposit({ currency: "tgBTC" });
+            let parsedNote2 = await parseNote(noteString2);
+            let noteString3 = await deposit({ currency: "tgBTC" });
+            let parsedNote3 = await parseNote(noteString3);
 
-            //TODO: I need to test transferring to existing one
+            //now do an utxo withdraw to the address of parsedNote2 and send the remainder to parsedNote3
+            const recipient_address = not_jetton_sender.address;
+            const [workchain, splitRawAddress] = SplitAddress(recipient_address.toRawString());
 
-            //TODO: test for errors            
+
+            const recipient_bigint = hexToBigint(splitRawAddress);
+
+            //I want to transfer half of the deposit, the other half goes to the UTXO
+            const transferred_amount = depositedAmount / 2n;
+
+            const { proof, publicSignals } = await generateNoteWithdrawProof(
+                {
+                    deposit: parsedNote.deposit,
+                    recipient: recipient_bigint,
+                    workchain: parseInt(workchain),
+                    transferto_commitment: parsedNote2.deposit.commitment,
+                    transferto_amount: transferred_amount,
+                    utxo_commitment: parsedNote3.deposit.commitment,
+                    snarkArtifacts: undefined
+                })
+            const curve = await buildBls12381();
+            const proofProc = unstringifyBigInts(proof);
+            const pi_aS = g1Compressed(curve, proofProc.pi_a);
+            const pi_bS = g2Compressed(curve, proofProc.pi_b);
+            const pi_cS = g1Compressed(curve, proofProc.pi_c);
+            const pi_a = Buffer.from(pi_aS, "hex");
+            const pi_b = Buffer.from(pi_bS, "hex");
+            const pi_c = Buffer.from(pi_cS, "hex");
 
 
+            const utxo_transfer_res = await depositWithdraw.sendUtxo_Withdraw(
+                newRelayer.getSender(), //The deployer is the relayer!
+                {
+                    pi_a: pi_a,
+                    pi_b: pi_b,
+                    pi_c: pi_c,
+                    pubInputs: publicSignals,
+                    value: toNano("0.15")
+                }
+            );
+
+            expect(utxo_transfer_res.transactions).toHaveTransaction({
+                from: newRelayer.address,
+                to: depositWithdraw.address,
+                success: true
+            })
+
+            //Now I expect the deposits to move to new commitments
+
+            const transferto_commitment_deposit = await depositWithdraw.getDeposit(parsedNote2.deposit.commitment);
+            expect(transferto_commitment_deposit.nullifier).toBe(0n);
+            expect(transferto_commitment_deposit.depositAmount).toBe(depositedAmount / 2n);
+
+            const utxo_commitment_deposit = await depositWithdraw.getDeposit(parsedNote3.deposit.commitment);
+            expect(utxo_commitment_deposit.nullifier).toBe(0n);
+            expect(utxo_commitment_deposit.depositAmount).toBe(toNano("0.49998"));
+
+            // //The old deposit is nullified
+            const original_deposit = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
+            expect(original_deposit.nullifier).toBe(parsedNote.deposit.nullifierHash);
+
+            const relayerData = await depositWithdraw.getRelayerData();
+
+            expect(relayerData.relayer_address.toRawString()).toBe(newRelayer.address.toRawString());
+            expect(relayerData.exact_fee_amount).toBe(newRelayerFee)
+
+
+            //I expect the balance of the deployer address to increase
+            deposit_contract_balance = await deposit_contract_jetton_wallet.getJettonBalance();
+
+            expect(deposit_contract_balance).toBe(depositedAmount - newRelayerFee);
+
+            let relayer_jetton_balance = await new_relayer_jetton_wallet.getJettonBalance();
+
+            expect(relayer_jetton_balance).toBe(newRelayerFee);
 
         })
 
 
     })
-
-
-
 });

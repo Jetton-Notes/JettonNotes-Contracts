@@ -2,19 +2,19 @@
 
 {- EXCEPTIONS FOR MAIN CONTRACT-}
 
-const int exec::invalid_proof = 50; ;;ZKP verification failed
-const int exec::deposit_not_found = 51; ;;The Deposit was not found in the dict
-const int exec::deposit_already_exists = 52;
-const int exec::deposit_nullified = 53;
-const int exec::missing_transferto_commitment = 54;
-const int exec::missing_transferto_amount = 55;
-const int exec::missing_utxo_commitment = 56;
-const int exec::transferto_nullified = 57;
-const int exec::utxo_nullified = 58;
-const int exec::deposit_amount_invalid = 59;
-const int exec::invalid_transfer_to = 60;
-const int exec::invalid_transfer_amount = 61;
-const int exec::invalid_utxo_commitment = 62;
+const int exec::invalid_proof = 257; ;;ZKP verification failed
+const int exec::deposit_not_found = 258; ;;The Deposit was not found in the dict
+const int exec::deposit_already_exists = 259;
+const int exec::deposit_nullified = 260;
+const int exec::missing_transferto_commitment = 261;
+const int exec::missing_transferto_amount = 262;
+const int exec::missing_utxo_commitment = 263;
+const int exec::transferto_nullified = 264;
+const int exec::utxo_nullified = 265;
+const int exec::deposit_amount_invalid = 266;
+const int exec::invalid_transfer_to = 267;
+const int exec::invalid_transfer_amount = 268;
+const int exec::invalid_utxo_commitment = 269;
 
 {- OP-CODES FOR MAIN CONTRACT-}
 
@@ -23,13 +23,12 @@ const op::deposit = 0x3b3ca17; ;;The opcode to deposit jettons
 
 const op::withdraw = 0x4b4ccb18; ;;The opcode to withdraw jettons
 const op::utxo_withdraw = 0x5b5ccb29; ;;The opcode to withdraw by creating new notes
+const op::set_fee_data = 0x6b6cc29; ;;The opcode to set the fee data
 
 const int op::transfer = 0xf8a7ea5;
 const int op::burn = 0x595f07bc;
 ;; const int op::transfer_notification = 0x7362d09c;
 const int op::excesses = 0xd53276db;
-
-
 
 {- EXCEPTIONS -}
 

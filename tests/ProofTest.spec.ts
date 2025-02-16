@@ -8,7 +8,7 @@ import { Address } from "@ton/core";
 describe("Proof test", () => {
 
     it("should create a note, a proof to withdraw and verify it", async () => {
-        const noteString = await deposit({ currency: "tbtc", amount: 10 });
+        const noteString = await deposit({ currency: "tbtc" });
         const parsedNote = await parseNote(noteString);
 
         const recipient_address = Address.parse("UQB9_eAKXGpTlx9I8qrkSjHMiDomWTrv6G7fBBb5Wj10_v-v");

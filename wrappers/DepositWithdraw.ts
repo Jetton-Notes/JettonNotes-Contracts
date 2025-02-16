@@ -4,7 +4,9 @@ export type DepositWithdrawConfig = {
     init: number;
     jetton_wallet_address: Address,
     jetton_wallet_set: number,
-    creator_address: Address
+    creator_address: Address,
+    relayer_address: Address,
+    exact_fee_amount: bigint
 };
 
 export function depositWithdrawConfigToCell(config: DepositWithdrawConfig): Cell {
@@ -13,6 +15,8 @@ export function depositWithdrawConfigToCell(config: DepositWithdrawConfig): Cell
         .storeAddress(config.jetton_wallet_address)
         .storeBit(config.jetton_wallet_set)
         .storeAddress(config.creator_address)
+        .storeAddress(config.relayer_address)
+        .storeCoins(config.exact_fee_amount)
         .endCell();
 }
 
@@ -27,9 +31,9 @@ export function depositJettonsForwardPayload(config: DepositForwardPayload) {
 }
 
 export const Opcodes = {
-    // deposit: 0x3b3ca17,
     withdraw: 0x4b4ccb18,
-    utxo_withdraw:0x5b5ccb29
+    utxo_withdraw: 0x5b5ccb29,
+    set_fee_data: 0x6b6cc29
 };
 
 export class DepositWithdraw implements Contract {
@@ -93,14 +97,14 @@ export class DepositWithdraw implements Contract {
     async sendUtxo_Withdraw(
         provider: ContractProvider,
         via: Sender,
-    opts: {
-        pi_a: Buffer;
-        pi_b: Buffer;
-        pi_c: Buffer;
-        pubInputs: bigint[];
-        value: bigint;
-        queryID?: number;
-    }
+        opts: {
+            pi_a: Buffer;
+            pi_b: Buffer;
+            pi_c: Buffer;
+            pubInputs: bigint[];
+            value: bigint;
+            queryID?: number;
+        }
     ) {
         await provider.internal(via, {
             value: opts.value,
@@ -127,6 +131,25 @@ export class DepositWithdraw implements Contract {
         });
     }
 
+    async sendSet_fee_data(
+        provider: ContractProvider,
+        via: Sender, opts: {
+            relayer_address: Address,
+            new_fee: bigint,
+            value: bigint,
+            queryID?: number
+        }) {
+        await provider.internal(via, {
+            value: opts.value,
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: beginCell()
+                .storeUint(Opcodes.set_fee_data, 32)
+                .storeUint(opts.queryID ?? 0, 64)
+                .storeAddress(opts.relayer_address)
+                .storeCoins(opts.new_fee).endCell()
+        })
+    }
+
     cellFromInputList(list: bigint[]): Cell {
         var builder = beginCell();
         builder.storeUint(list[0], 256);
@@ -146,7 +169,14 @@ export class DepositWithdraw implements Contract {
         return {
             nullifier, depositAmount
         }
+    }
 
+    async getRelayerData(provider: ContractProvider) {
+        const result = await provider.get("get_relayer_data", []);
+        const relayer_address = result.stack.readAddress();
+        const exact_fee_amount = result.stack.readBigNumber();
+
+        return { relayer_address, exact_fee_amount }
     }
 }
 
