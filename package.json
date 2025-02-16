@@ -25,11 +25,14 @@
         "typescript": "^5.7.3"
     },
     "dependencies": {
+        "bip32": "^5.0.0-rc.0",
         "circomlib": "^2.0.5",
         "circomlibjs": "^0.1.7",
+        "ecpair": "^3.0.0-rc.0",
         "ffjavascript": "^0.3.1",
-        "snarkjs": "^0.7.5",
         "poseidon-bls12381": "^1.0.2",
-        "poseidon-bls12381-circom": "^1.0.0"
+        "poseidon-bls12381-circom": "^1.0.0",
+        "snarkjs": "^0.7.5",
+        "tiny-secp256k1": "^2.2.3"
     }
 }

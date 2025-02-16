@@ -5,8 +5,10 @@ import { poseidon1, poseidon2 } from "poseidon-bls12381";
 
 import { groth16 } from "snarkjs"
 import crypto from "crypto";
+import * as ecc from "tiny-secp256k1";
+import { BIP32Factory } from "bip32";
 
-export function rbigint(): bigint { return utils.leBuff2int(crypto.randomBytes(31)) };
+export function rbigint(): bigint { return utils.leBuff2int(crypto.randomBytes(32)) };
 
 
 // Generates the proofs for verification! 
@@ -87,6 +89,18 @@ export async function deposit({ currency }) {
     return noteString;
 }
 
+export async function bip32derivedDeposit({ masterSecret, masterNullifier }) {
+    const bip32 = BIP32Factory(ecc);
+    const secretNode = bip32.fromSeed(utils.leInt2Buff(masterSecret))
+    const secretChild = secretNode.derive(1);
+    const nullifierNode = bip32.fromSeed(utils.leInt2Buff(masterNullifier))
+    const nullifierChild = nullifierNode.derive(1);
+    const nullifier = utils.leBuff2int(nullifierChild.privateKey);
+    const secret = utils.leBuff2int(secretChild.privateKey);
+    return createDeposit({ nullifier, secret })
+}
+
+
 /**
  * Create deposit object from secret and nullifier
    NOTE: Do not run this function to create notes on higher level.
@@ -96,7 +110,7 @@ async function createDeposit({ nullifier, secret }) {
     const deposit = {
         nullifier,
         secret,
-        preimage: Buffer.concat([utils.leInt2Buff(nullifier, 31), utils.leInt2Buff(secret, 31)]),
+        preimage: Buffer.concat([utils.leInt2Buff(nullifier, 32), utils.leInt2Buff(secret, 32)]),
         commitment: await generateCommitmentHash(nullifier, secret),
         nullifierHash: await generateNullifierHash(nullifier)
     }
@@ -122,7 +136,7 @@ export async function parseNote(noteString) {
     const secret = utils.leBuff2int(buf.slice(31, 62));
     const deposit = await createDeposit({ nullifier, secret });
     //@ts-ignore
-    return { currency: match.groups.currency,deposit }
+    return { currency: match.groups.currency, deposit }
 }
 
 
