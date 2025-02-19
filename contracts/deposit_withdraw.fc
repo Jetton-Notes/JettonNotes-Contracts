@@ -238,6 +238,8 @@
         throw_if(exec::missing_transferto_amount, transferto_amount == 0);
         throw_if(exec::missing_utxo_commitment, utxo_commitment == 0);
         
+        ;;The transferto and the utxo can't be equal
+        throw_if(exec::invalid_utxo_commitment, transferto_commitment == utxo_commitment);
         ;;Check that the amount to withdraw exists
         (slice payload,int found) = storage::deposits_dict.udict_get?(256,pubInput1); ;;Get the withdraw data by commitment
 
