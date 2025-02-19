@@ -357,8 +357,10 @@
     storage::load_data();
     
      (slice payload, int success) = storage::deposits_dict.udict_get?(256, commitment);
-
-    throw_unless(exec::deposit_not_found,success);
+  
+    ifnot(success){
+        return (0, 0);
+    }
 
     return unpack::depositData(payload);
 }
