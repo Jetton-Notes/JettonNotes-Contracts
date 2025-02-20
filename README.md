@@ -1,4 +1,8 @@
-# deposit
+# Jetton Notes
+
+A smart contract utilizing zkp that allows Jetton UTXO deposits an transactions with Account Abstraction.
+
+# depositWithdraw contract
 
 Circuit compile:
 `circom ./withdraw.circom --r1cs  --wasm  --prime bls12381 --sym `
