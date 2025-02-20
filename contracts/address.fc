@@ -8,6 +8,6 @@
     return equal_slices(_addr, storage::creator_address);
 }
 
-(int) address::is_relayer_address(slice _addr) inline {
-    return equal_slices(_addr,storage::relayer_address);
-}
+;; (int) address::is_relayer_address(slice _addr) inline {
+;;     return equal_slices(_addr,storage::relayer_address);
+;; }

@@ -254,26 +254,12 @@
         throw_if(exec::deposit_amount_invalid,transferto_amount > depositAmount);
 
  
-        int difference = -10;
-        int fee_reduced_deposit = depositAmount;
-        if(address::is_relayer_address(sender_address)){
-           fee_reduced_deposit = depositAmount - storage::exact_fee_amount;
-           ;; Transfer out the fee now
-           send_jettons(
-            query_id,
-            storage::exact_fee_amount,
-            storage::relayer_address,
-            storage::relayer_address,
-            storage::jetton_wallet_address,
-            0,
-            mode::carry_remaining_gas,
-            0,
-            begin_cell().store_uint(0,32).store_slice("Relayer fee payment").end_cell());
-        }
-
-        ;;The difference is the UTXO and it's just the deposit minus transfer_to
-         difference = fee_reduced_deposit - transferto_amount;
+        ;; Anyone should be able to become a relayer... the relaying is trustless
         
+        int fee_reduced_deposit = depositAmount - storage::exact_fee_amount;
+        ;;The difference is the UTXO and it's just the deposit minus transfer_to
+        int difference = fee_reduced_deposit - transferto_amount;
+
         ;;The difference can't be a negative number
         throw_if(exec::invalid_transfer_amount, difference < 0);
         
@@ -330,25 +316,33 @@
 
          storage::deposits_dict = newDict;
     
+       ;;Send the relayer fee
+       send_jettons(
+          query_id,
+          storage::exact_fee_amount,
+          sender_address,
+          sender_address,
+          storage::jetton_wallet_address,
+          0,
+          mode::carry_remaining_gas,
+          0,
+          begin_cell().store_uint(0,32).store_slice("Relayer fee payment").end_cell());
+
         storage::save_data();
         return();
     }
     
-    ;;An extra function to set the fee, the fee is only taken on relayed transactions submitted by the fee recepient (relayer)
+    
     if(op == op::set_fee_data){
-        ;;Only fee recepient address can call this function, it's to update the fee and to update the fee recepient address
-        throw_unless(exc::incorrect_sender, address::is_relayer_address(sender_address));
-        
-        slice new_relayer_address = in_msg_body~load_msg_addr();
+        ;;The creator can set a fee for the relayers, then anyone can become a relayer
+        throw_unless(exc::incorrect_sender, address::is_creator_address(sender_address));
         int new_fee = in_msg_body~load_coins();
-        storage::relayer_address = new_relayer_address;
         storage::exact_fee_amount = new_fee;
         
         storage::save_data();
 
         return ();
     }
-     
 
     throw(0xffff); ;; if the message contains an op that is not known to this contract, we throw
 }
@@ -367,7 +361,7 @@
     return unpack::depositData(payload);
 }
 
-(slice, int) get_relayer_data() method_id {
+(int) get_relayer_data() method_id {
     storage::load_data();
-    return (storage::relayer_address, storage::exact_fee_amount);
+    return (storage::exact_fee_amount);
 }

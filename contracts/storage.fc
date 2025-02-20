@@ -10,8 +10,6 @@ global int storage::jetton_wallet_set; ;;Was the jetton wallet set for this? no 
 
 global slice storage::creator_address;
 
-global slice storage::relayer_address;
-
 global int storage::exact_fee_amount;
 
 global cell storage::deposits_dict;
@@ -27,8 +25,6 @@ global cell storage::deposits_dict;
     storage::jetton_wallet_set = ds~load_uint(1);
 
     storage::creator_address = ds~load_msg_addr();
-
-    storage::relayer_address = ds~load_msg_addr();
 
     storage::exact_fee_amount = ds~load_coins();
 
@@ -46,7 +42,6 @@ global cell storage::deposits_dict;
         .store_slice(storage::jetton_wallet_address)
         .store_uint(storage::jetton_wallet_set,1)
         .store_slice(storage::creator_address)
-        .store_slice(storage::relayer_address)
         .store_coins(storage::exact_fee_amount)
         .store_dict(storage::deposits_dict)
         .end_cell());
