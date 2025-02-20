@@ -4,9 +4,9 @@ import { compile, NetworkProvider } from '@ton/blueprint';
 
 //TODO: Deploy on testnet
 
-//TODO:
-
-const JETTON_MASTER_ADDRESS = ""
+//TODO: THIS IS A TEST ADDRESS ONLY THAT WAS MINTED ON 
+// https://minter.ton.org/jetton/EQAtjC_IuHpCh65aReJ8NoSZ-_5EoI2JztuWKTq19ZQNfj3z?testnet=true
+const JETTON_MASTER_ADDRESS = "EQAtjC_IuHpCh65aReJ8NoSZ-_5EoI2JztuWKTq19ZQNfj3z"
 
 export async function run(provider: NetworkProvider) {
     const sender = provider.sender()
@@ -18,7 +18,8 @@ export async function run(provider: NetworkProvider) {
                 init: 0,
                 jetton_wallet_address: jetton_master_address,
                 jetton_wallet_set: 0,
-                creator_address: address
+                creator_address: address,
+                exact_fee_amount: toNano("0.00001")
             },
             await compile('DepositWithdraw')
         )
@@ -33,3 +34,4 @@ export async function run(provider: NetworkProvider) {
     // console.log('ID', await depositWithdraw.getID());
     //TODO: Console log the contract address
 }
+
