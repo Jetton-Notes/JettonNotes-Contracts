@@ -84,7 +84,7 @@ export function generateNullifierHash(nullifier) {
 
 export async function deposit({ currency }) {
     const deposit = await createDeposit({ nullifier: rbigint(), secret: rbigint() });
-    const note = toNoteHex(deposit.preimage, 62);
+    const note = toNoteHex(deposit.preimage, 64);
     const noteString = `jettonnote-${currency}-${note}`
     return noteString;
 }
