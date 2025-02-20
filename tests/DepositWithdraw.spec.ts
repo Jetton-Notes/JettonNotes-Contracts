@@ -130,7 +130,6 @@ describe('DepositWithdraw', () => {
                     jetton_wallet_address: jettonMinter.address,//Jetton minter address,
                     jetton_wallet_set: 0,
                     creator_address: deployer.address,
-                    relayer_address: deployer.address,
                     exact_fee_amount: fee_amount
                 },
                 contract_code
@@ -474,7 +473,7 @@ describe('DepositWithdraw', () => {
 
             const utxo_commitment_deposit = await depositWithdraw.getDeposit(parsedNote3.deposit.commitment);
             expect(utxo_commitment_deposit.nullifier).toBe(0n);
-            expect(utxo_commitment_deposit.depositAmount).toBe(depositedAmount / 2n);
+            expect(utxo_commitment_deposit.depositAmount).toBe((depositedAmount / 2n) - fee_amount);
 
             //The old deposit is nullified
             const original_deposit = await depositWithdraw.getDeposit(parsedNote.deposit.commitment);
@@ -574,7 +573,6 @@ describe('DepositWithdraw', () => {
 
             const relayerData = await depositWithdraw.getRelayerData();
 
-            expect(relayerData.relayer_address.toRawString()).toBe(deployer.address.toRawString());
             expect(relayerData.exact_fee_amount).toBe(fee_amount)
 
 
@@ -594,7 +592,6 @@ describe('DepositWithdraw', () => {
             const set_fee_data_result = await depositWithdraw.sendSet_fee_data(
                 deployer.getSender(),
                 {
-                    relayer_address: newRelayer.address,
                     new_fee: newRelayerFee,
                     value: toNano("0.15")
                 }
@@ -700,7 +697,6 @@ describe('DepositWithdraw', () => {
 
             const relayerData = await depositWithdraw.getRelayerData();
 
-            expect(relayerData.relayer_address.toRawString()).toBe(newRelayer.address.toRawString());
             expect(relayerData.exact_fee_amount).toBe(newRelayerFee)
 
 
