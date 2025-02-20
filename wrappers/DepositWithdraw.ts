@@ -5,7 +5,6 @@ export type DepositWithdrawConfig = {
     jetton_wallet_address: Address,
     jetton_wallet_set: number,
     creator_address: Address,
-    relayer_address: Address,
     exact_fee_amount: bigint
 };
 
@@ -15,7 +14,6 @@ export function depositWithdrawConfigToCell(config: DepositWithdrawConfig): Cell
         .storeAddress(config.jetton_wallet_address)
         .storeBit(config.jetton_wallet_set)
         .storeAddress(config.creator_address)
-        .storeAddress(config.relayer_address)
         .storeCoins(config.exact_fee_amount)
         .endCell();
 }
@@ -134,7 +132,6 @@ export class DepositWithdraw implements Contract {
     async sendSet_fee_data(
         provider: ContractProvider,
         via: Sender, opts: {
-            relayer_address: Address,
             new_fee: bigint,
             value: bigint,
             queryID?: number
@@ -145,7 +142,6 @@ export class DepositWithdraw implements Contract {
             body: beginCell()
                 .storeUint(Opcodes.set_fee_data, 32)
                 .storeUint(opts.queryID ?? 0, 64)
-                .storeAddress(opts.relayer_address)
                 .storeCoins(opts.new_fee).endCell()
         })
     }
@@ -173,10 +169,9 @@ export class DepositWithdraw implements Contract {
 
     async getRelayerData(provider: ContractProvider) {
         const result = await provider.get("get_relayer_data", []);
-        const relayer_address = result.stack.readAddress();
         const exact_fee_amount = result.stack.readBigNumber();
 
-        return { relayer_address, exact_fee_amount }
+        return { exact_fee_amount }
     }
 }
 
