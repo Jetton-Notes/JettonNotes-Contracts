@@ -332,6 +332,7 @@
         return();
     }
     
+    ;;TODO: withdraw to external wallet and do an utxo also!
     
     if(op == op::set_fee_data){
         ;;The creator can set a fee for the relayers, then anyone can become a relayer
