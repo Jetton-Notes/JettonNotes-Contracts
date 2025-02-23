@@ -31,7 +31,7 @@ export async function run(provider: NetworkProvider) {
 
     console.log("Contract address: ", depositWithdraw.address);
 
-    // console.log('ID', await depositWithdraw.getID());
-    //TODO: Console log the contract address
-}
-
+ 
+// Contract deployed at address EQBPd9iwc7sqBrvzSeVE5gzuZmGVaWaxSbYQtckCRXN6oI0i
+// You can view it at https://testnet.tonscan.org/address/EQBPd9iwc7sqBrvzSeVE5gzuZmGVaWaxSbYQtckCRXN6oI0i
+// Contract address:  EQBPd9iwc7sqBrvzSeVE5gzuZmGVaWaxSbYQtckCRXN6oI0i
