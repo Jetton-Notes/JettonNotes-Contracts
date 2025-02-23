@@ -14,6 +14,17 @@ The zkp allows verification of preimage of nullifierHash and commitmentHash by p
 
 The `commitmentHash` are the account addresses, the `secret` and `nullifier` are the private keys to spend a deposit and the `nullifierHash` is used for nullifying spend. Once a deposit is spent, the address is nullified and can't be used anymore!
 
+
+## Account Types
+
+There are two account types, one is a burner account with a single secret and nullifier. 
+The account secrets are always encoded in a crypto note format like : jettonnotes-tgbtc-<SECRET 512 bit number>
+
+The burner accounts are single use and after they are used they are invalidated.
+However there are derived accounts when the first jetton note is never used for deposit, it's used for deriving secrets from it.
+So the main note is jettonnotes-masternote-<SECRET> which contains the secret and nullifier and then using BIP32, further secrets and nullifiers are derived from it deterministically.
+So it's useful for an HD wallet implementation where the addresses can take deposits until they are spent and then the remaining balances go to a new address.!
+
 ## Powers of Tau 
 
 ### NOTE!!
