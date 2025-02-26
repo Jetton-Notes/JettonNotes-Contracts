@@ -143,7 +143,7 @@
       return ();
     }
 
-
+    ;;The sender can withdraw to his own address all the contents of the note
     if(op == op::withdraw){
         ;;Call the ZKP verifier in withraw and then transfer the jettons out
         slice pi_a = in_msg_body~verifier::load_p1();
@@ -154,7 +154,7 @@
         int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
         ;;Unused public inputs which are instead taken from the senders address
         int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
-        int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender
+        int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender for this verification
         int pubInput4 = in_msg_body~verifier::load_newint(); ;; Transfer to commitment      
         int pubInput5 = in_msg_body~verifier::load_newint(); ;; Transfer to amount
         int pubInput6 = in_msg_body~verifier::load_newint(); ;; Utxo commitment
@@ -207,8 +207,9 @@
 
         return ();
     };
-
-    if(op == op::utxo_withdraw){
+    
+    ;;There is a relayable transaction from one note to another with UTXO
+    if(op == op::transfer_note){
 
         slice pi_a = in_msg_body~verifier::load_p1();
         slice pi_b = in_msg_body~verifier::load_p2();
@@ -216,8 +217,8 @@
 
         int pubInput0 = in_msg_body~verifier::load_newint(); ;; This is the nullifierHash
         int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
-        int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
-        int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from the sender
+        int pubInput2 = in_msg_body~verifier::load_newint(); ;; The workchain
+        int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address in this case is ignored, can be zero
         int pubInput4 = in_msg_body~verifier::load_newint(); ;; Transfer to commitment      
         int pubInput5 = in_msg_body~verifier::load_newint(); ;; Transfer to amount
         int pubInput6 = in_msg_body~verifier::load_newint(); ;; Utxo commitment
@@ -332,7 +333,212 @@
         return();
     }
     
-    ;;TODO: withdraw to external wallet and do an utxo also!
+    ;;This can't be relayed, it's a withdraw just with an utxo
+    ;;There is a transaction from a Note account to a recepient address and there is UTXO
+    if(op == op::note_withdraw_to_external_with_utxo){
+
+        slice pi_a = in_msg_body~verifier::load_p1();
+        slice pi_b = in_msg_body~verifier::load_p2();
+        slice pi_c = in_msg_body~verifier::load_p1();
+
+        int pubInput0 = in_msg_body~verifier::load_newint(); ;; This is the nullifierHash
+        int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
+        int pubInput2 = in_msg_body~verifier::load_newint(); ;;The workchain value is taken from the address       
+        int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address is taken from another parameter
+        int pubInput4 = in_msg_body~verifier::load_newint(); ;; Transfer to commitment      
+        int pubInput5 = in_msg_body~verifier::load_newint(); ;; Transfer to amount
+        int pubInput6 = in_msg_body~verifier::load_newint(); ;; Utxo commitment
+
+        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,workchain, sender_addr_hashpart,pubInput4,pubInput5,pubInput6 );
+        
+         throw_if(exec::invalid_proof, verificationResult == 0);
+
+         int transferto_commitment = pubInput4;
+         int transferto_amount = pubInput5;
+         int utxo_commitment = pubInput6;
+
+         ;;The transfer to commitment must be zero for this, because the recepient address will receive the transfer
+         throw_if(exec::invalid_transfer_to, transferto_commitment != 0);
+         ;;There must be a valid transferto and utxo account
+         throw_if(exec::missing_transferto_amount, transferto_amount == 0);
+         throw_if(exec::missing_utxo_commitment, utxo_commitment == 0);
+
+          ;;Check that the amount to withdraw exists
+         (slice payload,int found) = storage::deposits_dict.udict_get?(256,pubInput1); ;;Get the withdraw data by commitment
+
+         throw_unless(exec::deposit_not_found, found); ;; If the Deposit is not found, throw
+
+         (int nullifierHash, int depositAmount) = unpack::depositData(payload);
+
+         ;; Check if the deposit was withdrawn already, if the nullifierHash is zero then it was not withrawn
+         throw_if(exec::deposit_nullified, nullifierHash != 0);
+        
+         ;;Throw if the amount I want to transfer is bigger than the deposit
+         throw_if(exec::deposit_amount_invalid,transferto_amount > depositAmount);
+
+         ;;The difference is the UTXO and it's just the deposit minus transfer_to
+         int difference = depositAmount - transferto_amount;
+
+         ;;The difference can't be a negative number
+         throw_if(exec::invalid_transfer_amount, difference < 0);
+        
+         ;;Update the utxo values
+         (slice utxo_payload, int utxo_found) = storage::deposits_dict.udict_get?(256, utxo_commitment);
+          if(utxo_found){
+             (int utxo_nullifierHash, int utxo_depositAmount) = unpack::depositData(utxo_payload);
+             throw_if(exec::utxo_nullified, utxo_nullifierHash != 0);
+             cell packedDepositData = pack::depositData(0,difference);
+             cell newDict = storage::deposits_dict.udict_set(256,utxo_commitment,packedDepositData.begin_parse());
+             storage::deposits_dict = newDict;
+         } else {
+             ;;Else create the utxo deposit
+             cell packedDepositdata = pack::depositData(0,difference);
+             (cell newDict, int success) = udict_add?(storage::deposits_dict,256,utxo_commitment,packedDepositdata.begin_parse());
+             throw_if(exec::deposit_already_exists, success == 0);
+             storage::deposits_dict = newDict;
+
+        }
+        
+         ;;Nullify the original amount
+         cell packedDepositData = pack::depositData(
+             pubInput0, ;;NullifierHash
+             0); ;;This deposit amount is nullified now
+
+
+         ;;Upate the dict for the transferred jettons
+          cell newDict = storage::deposits_dict.udict_set(256,pubInput1,packedDepositData.begin_parse());
+
+          storage::deposits_dict = newDict;
+
+        ;;Send the withrawn Jettons to the external jetton wallet
+        send_jettons(
+            query_id,
+            transferto_amount, ;;Sends the transferto amount
+            sender_address,
+            sender_address,
+            storage::jetton_wallet_address,
+            0,
+            mode::carry_remaining_gas,
+            0,
+            begin_cell()
+            .store_uint(0,32)
+            .store_slice("Jettons transferred from a jetton note")
+            .end_cell());
+       
+         storage::save_data();
+         return();
+
+    }
+
+    ;;This can be relayed transfers from a burner note to HD wallet, burner notes have no UTXO
+    ;;This is used for relayed sweeping of burner wallets into the Jetton Note HD wallet
+    if(op == op::note_withdraw_to_note_no_utxo){
+        slice pi_a = in_msg_body~verifier::load_p1();
+        slice pi_b = in_msg_body~verifier::load_p2();
+        slice pi_c = in_msg_body~verifier::load_p1();
+
+        int pubInput0 = in_msg_body~verifier::load_newint(); ;; This is the nullifierHash
+        int pubInput1 = in_msg_body~verifier::load_newint(); ;; This is the commitment hash
+        int pubInput2 = in_msg_body~verifier::load_newint(); ;; The workchain
+        int pubInput3 = in_msg_body~verifier::load_newint(); ;; The address in this case is ignored, can be zero
+        int pubInput4 = in_msg_body~verifier::load_newint(); ;; Transfer to commitment      
+        int pubInput5 = in_msg_body~verifier::load_newint(); ;; Transfer to amount
+        int pubInput6 = in_msg_body~verifier::load_newint(); ;; Utxo commitment
+
+        int verificationResult =  verifier::groth16Verify(pi_a,pi_b,pi_c,pubInput0,pubInput1,pubInput2, pubInput3,pubInput4,pubInput5,pubInput6 );
+        
+        throw_if(exec::invalid_proof, verificationResult == 0);
+
+        ;;These extra inputs are needed to  call utxo_withdraw
+        int transferto_commitment = pubInput4;
+        int transferto_amount = pubInput5;
+        int utxo_commitment = pubInput6;
+        ;;Throw error if transferto_commitment is zero
+        ;;Throw error if transferto_amount is zero
+        ;;Throw error if utxo_commitment is zero
+  
+        throw_if(exec::missing_transferto_commitment, transferto_commitment == 0);
+        throw_if(exec::missing_transferto_amount, transferto_amount == 0);
+        throw_if(exec::invalid_utxo_commitment, utxo_commitment != 0);
+
+        ;;The transferto and the utxo can't be equal
+        throw_if(exec::invalid_utxo_commitment, transferto_commitment == utxo_commitment);
+        ;;Check that the amount to withdraw exists
+        (slice payload,int found) = storage::deposits_dict.udict_get?(256,pubInput1); ;;Get the withdraw data by commitment
+
+        throw_unless(exec::deposit_not_found, found); ;; If the Deposit is not found, throw
+
+        (int nullifierHash, int depositAmount) = unpack::depositData(payload);
+
+        ;; Check if the deposit was withdrawn already, if the nullifierHash is zero then it was not withrawn
+        throw_if(exec::deposit_nullified, nullifierHash != 0);
+        
+
+        ;; Anyone should be able to become a relayer... the relaying is trustless
+        int fee_reduced_deposit = depositAmount - storage::exact_fee_amount;
+        
+        ;;Throw if the amount I want to transfer doesn't equal the deposit amount - relayer fee. This function is for sweeping burner wallet
+        throw_if(exec::deposit_amount_invalid,transferto_amount != fee_reduced_deposit);
+
+        ;; ~dump(fee_reduced_deposit);
+        ;;The difference is the UTXO and it's just the deposit minus transfer_to
+        int difference = fee_reduced_deposit - transferto_amount;
+                
+        ;;The difference should be zero here
+        throw_if(exec::invalid_transfer_amount, difference != 0);
+        
+        ;;Calculate the amount to transfer, update the dicts with the amounts...
+        (slice transferto_payload, int transferto_found) = storage::deposits_dict.udict_get?(256,transferto_commitment);
+        ;;If the address to transfer to was found, I need to make sure that is not nullified...
+        if(transferto_found){
+
+          (int transferto_nullifierHash, int transferto_depositAmount) = unpack::depositData(transferto_payload);
+           throw_if(exec::transferto_nullified, transferto_nullifierHash != 0);
+
+           int newTransferto_depositAmount = transferto_depositAmount + transferto_amount;
+           
+           cell packedDepositData = pack::depositData(0,newTransferto_depositAmount);
+
+           cell newDict = storage::deposits_dict.udict_set(256, transferto_commitment,packedDepositData.begin_parse());
+
+           storage::deposits_dict = newDict;
+
+        } else {
+          ;;Create a new deposit here for transferto_commitment
+          cell packedDepositData = pack::depositData(0,transferto_amount);
+          (cell newDict, int success) = udict_add?(storage::deposits_dict,256,transferto_commitment,packedDepositData.begin_parse());
+          throw_if(exec::deposit_already_exists, success == 0);
+          storage::deposits_dict = newDict;
+        }
+
+        ;;Nullify the original amount
+        cell packedDepositData = pack::depositData(
+            pubInput0, ;;NullifierHash
+            0); ;;This deposit amount is nullified now
+
+
+        ;;Upate the dict
+         cell newDict = storage::deposits_dict.udict_set(256,pubInput1,packedDepositData.begin_parse());
+
+         storage::deposits_dict = newDict;
+    
+       ;;Send the relayer fee
+       send_jettons(
+          query_id,
+          storage::exact_fee_amount,
+          sender_address,
+          sender_address,
+          storage::jetton_wallet_address,
+          0,
+          mode::carry_remaining_gas,
+          0,
+          begin_cell().store_uint(0,32).store_slice("Relayer fee payment").end_cell());
+
+        storage::save_data();
+        return();
+        
+    }
+
     
     if(op == op::set_fee_data){
         ;;The creator can set a fee for the relayers, then anyone can become a relayer
