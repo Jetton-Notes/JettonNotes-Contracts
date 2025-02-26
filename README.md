@@ -56,14 +56,46 @@ The smart contract has a generic name DepositWithdraw because that's exactly wha
    `op::withdraw` this operation verifies a zero knowledge proof and withdraws the deposited jettons to the sender's wallet.
    The address of the sender must be the same as the address in teh zero knowledge proof, this operation is not relayable!
 
-   `op::utxo_withdraw` This operation is relayable and allows the user to withdraw a deposit into another account inside the contract and send the remainder of the transaction to an UTXO account. 
+   **transferto_commitment must be zero**
+   
+   **transferto_amount must be zero**
+   
+   **utxo_commitmetn must be zero**
+   
+   **The sender address must be in the proof**
+
+   `op::transfer_note` This operation is relayable and allows the user to withdraw a deposit into another account inside the contract and send the remainder of the transaction to an UTXO account. 
    When an account transfers balance, it's invalidated so it's remainder content is transferred to a new account.
    `transferto_commitment` is the commintment of the account to transfer to
    `transferto_amount` is the amount to transfer
    `utxo_commitment` is the commitment of the account that will get the remainder of the transaction
 
+   **transferto_commitment can't be zero**
+
+   **transferto_amount can't be zero**
+
+   **utxo_commitmetn can't be zero**
+
+   These are important because the other functions with the same ZKP arguments have different requirements, so the function calls can't be mixed with the same proof.
+
+
    Example: Account A is deposited 1 tgBTC, then Account A wants to transfer 0.5 to Account B, then it needs to specify account C to receive the remaining 0.5 back.
    There is a relayer fee which can be set by the deployer and it's the same fee for all relayers. Anyone can become a relayer and connect a fee and this allows for total decentralization!
+
+   `op::note_withdraw_to_external_with_utxo` this operation was created to withdraw a part of a note to an external wallet and the remained is transferred to a new UTXO, so users can redeem part of a HD wallet balance while keeping the rest. 
+
+   **The utxo_commitment must be zero else it fails.**
+
+   **The sender address must be in the proof**
+
+   `op::note_withdraw_to_note_no_utxo` This is a relayed operation that allows to sweep a note and transfer it's contents to another note, without utxo output. Designed for sweeping burner wallet into hdwallet.
+
+   **the transferto_commitment can't be zero**
+
+   **The transferto_amount can't be zero and it must equial depositAmount - relayerFee**
+
+   **the utxo_commitment must be zero**
+
 
    `op::set_fee_data` is an operation where the deployer can adjust the fee the relayer will receive
 
