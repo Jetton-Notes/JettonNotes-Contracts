@@ -98,7 +98,11 @@ describe("Jetton", () => {
         expect(await jetton_receiver_jetton_wallet.getJettonBalance()).toBe(INITIAL_JETTON_BALANCE);
     })
 
-
+    describe("transfers jettons", () => {
+        it("transfer", async () => {
+            expect(true).toBe(true)
+        })
+    })
 
 
 })
