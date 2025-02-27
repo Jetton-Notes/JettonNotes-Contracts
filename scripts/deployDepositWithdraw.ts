@@ -30,6 +30,6 @@ export async function run(provider: NetworkProvider) {
 
 }
 //USES tgBTC on testnet now
-// Contract deployed at address EQArCEcoe7MsalpKKQSMov_lU6nNS1wuAVVC-0cmHgCux_CY
-// You can view it at https://testnet.tonscan.org/address/EQArCEcoe7MsalpKKQSMov_lU6nNS1wuAVVC-0cmHgCux_CY
-// Contract address:  EQArCEcoe7MsalpKKQSMov_lU6nNS1wuAVVC-0cmHgCux_CY
+// Contract deployed at address EQDW_KLohAhwdPToks0Qvdf13pcMxI5H5Esnh6UubpAymCzU
+// You can view it at https://testnet.tonscan.org/address/EQDW_KLohAhwdPToks0Qvdf13pcMxI5H5Esnh6UubpAymCzU
+// Contract address:  EQDW_KLohAhwdPToks0Qvdf13pcMxI5H5Esnh6UubpAymCzU
