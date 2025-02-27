@@ -16,7 +16,7 @@ export async function run(provider: NetworkProvider) {
                 jetton_wallet_address: jetton_master_address,
                 jetton_wallet_set: 0,
                 creator_address: address,
-                exact_fee_amount: toNano("0.00001")
+                exact_fee_amount: toNano("0.0000001")
             },
             await compile('DepositWithdraw')
         )
