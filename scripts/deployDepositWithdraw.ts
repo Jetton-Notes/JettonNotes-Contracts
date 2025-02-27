@@ -2,16 +2,13 @@ import { Address, toNano } from '@ton/core';
 import { DepositWithdraw } from '../wrappers/DepositWithdraw';
 import { compile, NetworkProvider } from '@ton/blueprint';
 
-//TODO: Deploy on testnet
+const TGBTC_TESTNET_JETTON_MASTER = "kQDoy1cUAbGq253vwfoPcqSloODVAWkDBniR12PJFUHnK6Yf";
 
-//TODO: THIS IS A TEST ADDRESS ONLY THAT WAS MINTED ON 
-// https://minter.ton.org/jetton/EQAtjC_IuHpCh65aReJ8NoSZ-_5EoI2JztuWKTq19ZQNfj3z?testnet=true
-const JETTON_MASTER_ADDRESS = "EQAtjC_IuHpCh65aReJ8NoSZ-_5EoI2JztuWKTq19ZQNfj3z"
 
 export async function run(provider: NetworkProvider) {
     const sender = provider.sender()
     const address = sender.address as Address;
-    const jetton_master_address = Address.parse(JETTON_MASTER_ADDRESS)
+    const jetton_master_address = Address.parse(TGBTC_TESTNET_JETTON_MASTER)
     const depositWithdraw = provider.open(
         DepositWithdraw.createFromConfig(
             {
@@ -31,7 +28,8 @@ export async function run(provider: NetworkProvider) {
 
     console.log("Contract address: ", depositWithdraw.address);
 
- 
-// Contract deployed at address EQBPd9iwc7sqBrvzSeVE5gzuZmGVaWaxSbYQtckCRXN6oI0i
-// You can view it at https://testnet.tonscan.org/address/EQBPd9iwc7sqBrvzSeVE5gzuZmGVaWaxSbYQtckCRXN6oI0i
-// Contract address:  EQBPd9iwc7sqBrvzSeVE5gzuZmGVaWaxSbYQtckCRXN6oI0i
+}
+//USES tgBTC on testnet now
+// Contract deployed at address EQArCEcoe7MsalpKKQSMov_lU6nNS1wuAVVC-0cmHgCux_CY
+// You can view it at https://testnet.tonscan.org/address/EQArCEcoe7MsalpKKQSMov_lU6nNS1wuAVVC-0cmHgCux_CY
+// Contract address:  EQArCEcoe7MsalpKKQSMov_lU6nNS1wuAVVC-0cmHgCux_CY
